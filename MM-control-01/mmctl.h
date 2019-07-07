@@ -8,6 +8,10 @@
 extern int active_extruder;
 extern bool isFilamentLoaded;
 
+void set_extruder_led(int extruder, uint16_t color);
+#define GREEN 0x1
+#define ORANGE 0x2
+
 void switch_extruder_withSensor(int new_extruder);
 void select_extruder(int new_extruder);
 bool feed_filament(bool timeout = false);

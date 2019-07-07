@@ -125,6 +125,9 @@
 //number of extruders
 #define EXTRUDERS 5
 
+//number of extruder indicators (LEDs)
+#define LEDS 5
+
 //diagnostic functions
 //#define _DIAG
 

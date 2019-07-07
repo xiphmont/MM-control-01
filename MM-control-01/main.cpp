@@ -112,7 +112,7 @@ void signal_load_failure()
 {
     shr16_set_led(0x000);
     delay(800);
-    shr16_set_led(2 << 2 * (4 - active_extruder));
+    set_extruder_led(active_extruder, ORANGE);
     delay(800);
 }
 
@@ -120,9 +120,9 @@ void signal_ok_after_load_failure()
 {
     shr16_set_led(0x000);
     delay(800);
-    shr16_set_led(1 << 2 * (4 - active_extruder));
+    set_extruder_led(active_extruder, GREEN);
     delay(100);
-    shr16_set_led(2 << 2 * (4 - active_extruder));
+    set_extruder_led(active_extruder, ORANGE);
     delay(100);
     delay(800);
 }
@@ -319,7 +319,8 @@ void setup()
 //! 00 | 00 | 01 | 00 | 00 | filament 3
 //! 00 | 00 | 00 | 01 | 00 | filament 4
 //! 00 | 00 | 00 | 00 | 01 | filament 5
-//! 00 | 00 | 00 | 00 | bb | park position
+//! 01 | 01 | 00 | 00 | 00 | filament 6
+//! 01 | 00 | bb | 00 | 00 | park position
 //!
 //! @n R - Red LED
 //! @n G - Green LED
@@ -328,7 +329,7 @@ void setup()
 //! @n b - blinking
 void manual_extruder_selector()
 {
-	shr16_set_led(1 << 2 * (4 - active_extruder));
+        set_extruder_led(active_extruder, GREEN);
 
 	if ((Btn::left|Btn::right) & buttonPressed())
 	{
@@ -337,7 +338,7 @@ void manual_extruder_selector()
 		switch (buttonPressed())
 		{
 		case Btn::right:
-			if (active_extruder < 5)
+			if (active_extruder < EXTRUDERS)
 			{
 				select_extruder(active_extruder + 1);
 			}
@@ -352,11 +353,11 @@ void manual_extruder_selector()
 		delay(500);
 	}
 
-	if (active_extruder == 5)
+	if (active_extruder == EXTRUDERS)
 	{
-		shr16_set_led(2 << 2 * 0);
+                set_extruder_led(active_extruder, ORANGE);
 		delay(50);
-		shr16_set_led(1 << 2 * 0);
+                set_extruder_led(active_extruder, GREEN);
 		delay(50);
 	}
 }
@@ -386,9 +387,9 @@ void loop()
         break;
     case S::Idle:
         manual_extruder_selector();
-        if(Btn::middle == buttonPressed() && active_extruder < 5)
+        if(Btn::middle == buttonPressed() && active_extruder < EXTRUDERS)
         {
-            shr16_set_led(2 << 2 * (4 - active_extruder));
+            set_extruder_led(active_extruder, ORANGE);
             delay(500);
             if (Btn::middle == buttonPressed())
             {

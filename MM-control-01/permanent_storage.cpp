@@ -3,6 +3,7 @@
 
 #include "permanent_storage.h"
 #include "mmctl.h"
+#include "config.h"
 #include <avr/eeprom.h>
 
 #define ARR_SIZE(ARRAY) (sizeof(ARRAY)/sizeof(ARRAY[0]))
@@ -17,7 +18,7 @@
 typedef struct __attribute__ ((packed))
 {
 	uint8_t eepromLengthCorrection; //!< legacy bowden length correction
-	uint16_t eepromBowdenLen[5];    //!< Bowden length for each filament
+	uint16_t eepromBowdenLen[EXTRUDERS];    //!< Bowden length for each filament
 	uint8_t eepromFilamentStatus[3];//!< Majority vote status of eepromFilament wear leveling
 	uint8_t eepromFilament[800];    //!< Top nibble status, bottom nibble last filament loaded
 	uint8_t eepromDriveErrorCountH;

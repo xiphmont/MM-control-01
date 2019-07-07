@@ -25,6 +25,22 @@ bool isFilamentLoaded = false;
 //! Number of pulley steps to eject and un-eject filament
 static const int eject_steps = 2500;
 
+
+// In the plus mods, we have more extruders than LEDs.  Abstract
+// indication of extruders 'apst the end' of the LED display.
+void set_extruder_led(int extruder, uint16_t color)
+{
+  if (extruder < LEDS)
+    {  // light a single LED
+      shr16_set_led( color << 2 * ((LEDS-1) - extruder));
+    }
+  else
+    {  // wrap around, leaving first LED lit gree
+      shr16_set_led( (GREEN << 2 *  (LEDS-1)) |
+                     (color << 2 * ((LEDS-1) *2 - extruder)));
+    }
+}
+
 //! @brief Feed filament to FINDA
 //!
 //! Continuously feed filament until FINDA is not switched ON
@@ -63,7 +79,7 @@ bool feed_filament(bool timeout)
 
             if (blinker > 50)
             {
-                shr16_set_led(2 << 2 * (4 - active_extruder));
+              set_extruder_led(active_extruder, ORANGE);
             }
             if (blinker > 100)
             {
@@ -99,7 +115,7 @@ bool feed_filament(bool timeout)
 
 	tmc2130_disable_axis(AX_PUL, tmc2130_mode);
 	motion_disengage_idler();
-	shr16_set_led(1 << 2 * (4 - active_extruder));
+        set_extruder_led(active_extruder, GREEN);
 
 	return loaded;
 }
@@ -158,9 +174,8 @@ void resolve_failed_loading(){
 //! @param new_extruder Filament to be selected
 void switch_extruder_withSensor(int new_extruder)
 {
-	shr16_set_led(2 << 2 * (4 - active_extruder));
-
-	active_extruder = new_extruder;
+  set_extruder_led(active_extruder, ORANGE);
+    active_extruder = new_extruder;
 
     if (isFilamentLoaded)
     {
@@ -169,15 +184,15 @@ void switch_extruder_withSensor(int new_extruder)
 
     motion_set_idler_selector(active_extruder);
 
-    shr16_set_led(2 << 2 * (4 - active_extruder));
+    set_extruder_led(active_extruder, ORANGE);
 
     if (!isFilamentLoaded)
     {
             load_filament_withSensor();
     }
 
-	shr16_set_led(0x000);
-	shr16_set_led(1 << 2 * (4 - active_extruder));
+    shr16_set_led(0x000);
+    set_extruder_led(active_extruder, GREEN);
 }
 
 //! @brief Select filament
@@ -188,14 +203,13 @@ void switch_extruder_withSensor(int new_extruder)
 //! @param new_extruder Filament to be selected
 void select_extruder(int new_extruder)
 {
-	shr16_set_led(2 << 2 * (4 - active_extruder));
-
-	active_extruder = new_extruder;
+    set_extruder_led(active_extruder, ORANGE);
+    active_extruder = new_extruder;
 
     motion_set_idler_selector((new_extruder < EXTRUDERS) ? new_extruder : (EXTRUDERS - 1) , new_extruder);
 
-	shr16_set_led(0x000);
-	shr16_set_led(1 << 2 * (4 - active_extruder));
+    shr16_set_led(0x000);
+    set_extruder_led(active_extruder, GREEN);
 }
 //! @brief cut filament
 //! @param filament filament 0 to 4

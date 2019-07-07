@@ -15,11 +15,12 @@
 int8_t filament_type[EXTRUDERS] = {-1, -1, -1, -1, -1};
 static bool isIdlerParked = false;
 
-static const int selector_steps_after_homing = -3700;
 static const int idler_steps_after_homing = -130;
 
-static const int selector_steps = 2790/4;
-static const int idler_steps = 1420 / 4;    // 2 msteps = 180 / 4
+static const int selector_steps = 697; // 14mm of leadscrew travel
+static const int selector_park_steps = 299; // 6mm of leadscrew travel
+static const int selector_steps_after_homing = -(selector_steps + selector_park_steps);
+static const int idler_steps = 355; // 40 degrees of rotation
 static const int idler_parking_steps = (idler_steps / 2) + 40;  // 40
 
 
@@ -36,7 +37,18 @@ static void move(int _idler, int _selector, int _pulley);
 //! @return selector steps
 int get_selector_steps(int current_filament, int next_filament)
 {
-    return (((current_filament - next_filament) * selector_steps) * -1);
+    if (current_filament == EXTRUDERS)
+    { // coming out of park
+        return ((next_filament - EXTRUDERS + 1) * selector_steps + selector_park_steps);
+    }
+    else if (next_filament == EXTRUDERS)
+    { // going into park
+        return ((EXTRUDERS - 1 - current_filament) * selector_steps - selector_park_steps);
+    }
+    else
+    { // moving between two filament positions
+        return ((next_filament - current_filament) * selector_steps);
+    }
 }
 
 //! @brief Compute steps for idler needed to change filament
@@ -90,7 +102,7 @@ bool home_idler()
 
 			_c++;
 			if (i == 1000) { _l++; }
-			if (_c > 100) { shr16_set_led(1 << 2 * _l); };
+			if (_c > 100) { set_extruder_led(_l, ORANGE); };
 			if (_c > 200) { shr16_set_led(0x000); _c = 0; };
 		}
 	}
@@ -135,7 +147,7 @@ bool home_selector()
 		}
 	}
 
-	move(0, selector_steps_after_homing,0); // move to initial position
+	move(0, selector_steps_after_homing, 0); // move to initial position
 
     tmc2130_init(tmc2130_mode);
 
@@ -155,9 +167,9 @@ void home()
 
     shr16_set_led(0x000);
 
-    shr16_set_led(1 << 2 * (4-active_extruder));
+    set_extruder_led(active_extruder, GREEN);
 }
- 
+
 
 void move_proportional(int _idler, int _selector)
 {

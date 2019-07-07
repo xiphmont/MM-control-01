@@ -28,12 +28,12 @@ bool settings_select_filament()
 
     if(Btn::middle == buttonPressed())
     {
-        shr16_set_led(2 << 2 * (4 - active_extruder));
+        set_extruder_led(active_extruder, ORANGE);
         delay(500);
         if (Btn::middle == buttonPressed())
         {
             motion_set_idler_selector(active_extruder);
-            if (active_extruder < 5) settings_bowden_length();
+            if (active_extruder < EXTRUDERS) settings_bowden_length();
             else
             {
                 select_extruder(0);
@@ -147,7 +147,7 @@ bool setupMenu()
         delay(400);
 
         shr16_set_led(0x000);
-        shr16_set_led(1 << 2 * (4 - active_extruder));
+        set_extruder_led(active_extruder, GREEN);
 
         return false;
     }
