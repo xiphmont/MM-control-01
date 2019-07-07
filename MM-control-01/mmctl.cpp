@@ -145,10 +145,10 @@ void resolve_failed_loading(){
                     motion_set_idler_selector(active_extruder);
                     if(feed_filament(true)){resolved = true;}
                 }
-                
+
                 if(resolved){
                     motion_set_idler_selector(active_extruder);
-                    motion_engage_idler();                    
+                    motion_engage_idler();
                     exit = true;
                 }
             break;
@@ -158,7 +158,7 @@ void resolve_failed_loading(){
                     signal_ok_after_load_failure();}
                 else{
                     signal_load_failure();}
-                
+
             break;
         }
     }
@@ -174,7 +174,7 @@ void resolve_failed_loading(){
 //! @param new_extruder Filament to be selected
 void switch_extruder_withSensor(int new_extruder)
 {
-  set_extruder_led(active_extruder, ORANGE);
+    set_extruder_led(active_extruder, ORANGE);
     active_extruder = new_extruder;
 
     if (isFilamentLoaded)
@@ -212,7 +212,7 @@ void select_extruder(int new_extruder)
     set_extruder_led(active_extruder, GREEN);
 }
 //! @brief cut filament
-//! @param filament filament 0 to 4
+//! @par filament filament 0 to EXTRUDERS-1
 void mmctl_cut_filament(uint8_t filament)
 {
     const int cut_steps_pre = 700;
@@ -247,7 +247,7 @@ void mmctl_cut_filament(uint8_t filament)
         steps++;
         delayMicroseconds(1500);
     }
-    motion_set_idler_selector(filament, 5);
+    motion_set_idler_selector(filament, EXTRUDERS);
     motion_set_idler_selector(filament, 0);
     motion_set_idler_selector(filament, filament);
     if(!feed_filament(true)){resolve_failed_loading();}
@@ -264,7 +264,7 @@ void mmctl_cut_filament(uint8_t filament)
 void eject_filament(uint8_t filament)
 {
     active_extruder = filament;
-    const uint8_t selector_position = (filament <= 2) ? 4 : 0;
+    const uint8_t selector_position = (filament <= EXTRUDERS/2) ? EXTRUDERS-1 : 0;
 
     if (isFilamentLoaded)  unload_filament_withSensor();
 
@@ -594,13 +594,13 @@ void unload_filament_withSensor()
             delay(100);
             if (!_isOk)
             {
-                shr16_set_led(2 << 2 * (4 - active_extruder));
+                set_extruder_led(active_extruder, ORANGE);
             }
             else
             {
-                shr16_set_led(1 << 2 * (4 - active_extruder));
+                set_extruder_led(active_extruder, GREEN);
                 delay(100);
-                shr16_set_led(2 << 2 * (4 - active_extruder));
+                set_extruder_led(active_extruder, ORANGE);
                 delay(100);
             }
             delay(100);
@@ -644,7 +644,7 @@ void unload_filament_withSensor()
 
         } while (!_continue);
 
-        shr16_set_led(1 << 2 * (4 - active_extruder));
+        set_extruder_led(active_extruder, GREEN);
         motion_engage_idler();
     }
     else
