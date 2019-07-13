@@ -39,11 +39,11 @@ int get_selector_steps(int current_filament, int next_filament)
 {
     if (current_filament == EXTRUDERS)
     { // coming out of park
-        return ((next_filament - EXTRUDERS + 1) * selector_steps + selector_park_steps);
+        return ((next_filament - EXTRUDERS + 1) * selector_steps - selector_park_steps);
     }
     else if (next_filament == EXTRUDERS)
     { // going into park
-        return ((EXTRUDERS - 1 - current_filament) * selector_steps - selector_park_steps);
+        return ((EXTRUDERS - 1 - current_filament) * selector_steps + selector_park_steps);
     }
     else
     { // moving between two filament positions
