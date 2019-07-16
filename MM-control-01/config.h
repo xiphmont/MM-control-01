@@ -61,7 +61,7 @@
 // SG_THR stallguard treshold (sensitivity), range -128..127, real 0-3
 #define TMC2130_SG_THR_0       5
 #define TMC2130_SG_THR_1       6
-#define TMC2130_SG_THR_2       1
+#define TMC2130_SG_THR_2       9
 // TCOOLTHRS coolstep treshold, usable range 400-600
 #define TMC2130_TCOOLTHRS_0    450
 #define TMC2130_TCOOLTHRS_1    450
@@ -79,7 +79,8 @@
 #define CURRENT_HOLDING_NORMAL {1, 10, 22}  // {?,?,570 mA}
 #define CURRENT_RUNNING_STEALTH {35, 35, 45} // {?,?,910 mA}
 #define CURRENT_RUNNING_NORMAL {30, 35, 47} // {?,?,910 mA}
-#define CURRENT_HOMING {1, 35, 30}
+ // IMPORTANT: IDL homing current must be < 31 to trigger a setup that favors better StallGuard data
+#define CURRENT_HOMING {1, 30, 27}
 
 //mode
 #define HOMING_MODE 0
@@ -122,7 +123,10 @@
 #define STA_ERR_TMC2_PIN_DIR  -25 //TMC2130 axis2 pin wirring error - dir signal
 #define STA_ERR_TMC2_PIN_ENA  -26 //TMC2130 axis2 pin wirring error - ena signal
 
-//number of extruders
+//max number of extruders in EEPROM layout
+#define MAX_EXTRUDERS 8
+
+// actual number of extruders
 #define EXTRUDERS 6
 
 //number of extruder indicators (LEDs)

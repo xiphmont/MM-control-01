@@ -35,7 +35,7 @@ static void rehome_idler()
     delay(10);
     shr16_set_ena(7);
     tmc2130_init(tmc2130_mode);
-    home_idler();
+    calibrate_idler();
     int idler_steps = get_idler_steps(0, s_idler);
     move_proportional(idler_steps, 0);
     if (s_idler_engaged) park_idler(true);
@@ -222,7 +222,7 @@ void motion_door_sensor_detected()
 
 void motion_set_idler(uint8_t idler)
 {
-    home_idler();
+    calibrate_idler();
     int idler_steps = get_idler_steps(0, idler);
     move_proportional(idler_steps, 0);
     s_idler = idler;

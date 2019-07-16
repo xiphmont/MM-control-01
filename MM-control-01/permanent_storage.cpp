@@ -18,15 +18,20 @@
 typedef struct __attribute__ ((packed))
 {
 	uint8_t eepromLengthCorrection; //!< legacy bowden length correction
-	uint16_t eepromBowdenLen[EXTRUDERS];    //!< Bowden length for each filament
+	uint16_t eepromBowdenLen[MAX_EXTRUDERS];    //!< Bowden length for each filament
 	uint8_t eepromFilamentStatus[3];//!< Majority vote status of eepromFilament wear leveling
 	uint8_t eepromFilament[800];    //!< Top nibble status, bottom nibble last filament loaded
 	uint8_t eepromDriveErrorCountH;
 	uint8_t eepromDriveErrorCountL[2];
+        uint8_t eepromExtruders;
+        uint16_t eepromSelectorSpan;
+        uint16_t eepromSelectorLeftFlex;
+        uint16_t eepromSelectorRightFlex;
+        uint8_t eepromSelectorOffset;
 }eeprom_t;
 static_assert(sizeof(eeprom_t) - 2 <= E2END, "eeprom_t doesn't fit into EEPROM available.");
 //! @brief EEPROM layout version
-static const uint8_t layoutVersion = 0xff;
+static const uint8_t layoutVersion = 0xee;
 
 //d = 6.3 mm        pulley diameter
 //c = pi * d        pulley circumference
@@ -228,7 +233,7 @@ int16_t FilamentLoaded::getIndex()
 }
 
 //! @brief Get last filament loaded
-//! @param [in,out] filament filament number 0 to 4
+//! @par [in,out] filament filament number 0 to EXTRUDERS-1
 //! @retval true success
 //! @retval false failed
 bool FilamentLoaded::get(uint8_t& filament)
@@ -237,7 +242,7 @@ bool FilamentLoaded::get(uint8_t& filament)
     if ((index < 0) || (static_cast<uint16_t>(index) >= ARR_SIZE(eeprom_t::eepromFilament))) return false;
     const uint8_t rawFilament = eeprom_read_byte(&(eepromBase->eepromFilament[index]));
     filament = 0x0f & rawFilament;
-    if (filament > 4) return false;
+    if (filament >= EXTRUDERS) return false;
     const uint8_t status = getStatus();
     if (!(status == KeyFront1
         || status == KeyReverse1
@@ -253,8 +258,8 @@ bool FilamentLoaded::get(uint8_t& filament)
 //! If it is not possible store filament, it tries all other
 //! keys. Fails if storing with all other keys failed.
 //!
-//! @param filament bottom 4 bits are stored
-//! but only value 0 to 4 passes validation in FilamentLoaded::get()
+//! @par filament bottom 4 bits are stored
+//! but only value 0 to EXTRUDERS-1 passes validation in FilamentLoaded::get()
 //! @retval true success
 //! @retval false failed
 bool FilamentLoaded::set(uint8_t filament)
@@ -374,4 +379,44 @@ uint8_t DriveError::getH()
 void DriveError::setH(uint8_t highByte)
 {
     eeprom_update_byte(&(eepromBase->eepromDriveErrorCountH), highByte - 1);
+}
+
+void SelectorParams::set_extruders(uint8_t extruders){
+  eeprom_update_byte(&(eepromBase->eepromExtruders), extruders);
+}
+
+void SelectorParams::set_offset(int8_t offset){
+  eeprom_update_byte(&(eepromBase->eepromSelectorOffset), (uint8_t)offset);
+}
+
+void SelectorParams::set_span(uint16_t span){
+  eeprom_update_word(&(eepromBase->eepromSelectorSpan), span);
+}
+
+void SelectorParams::set_left_flex(uint16_t flex){
+  eeprom_update_word(&(eepromBase->eepromSelectorLeftFlex), flex);
+}
+
+void SelectorParams::set_right_flex(uint16_t flex){
+  eeprom_update_word(&(eepromBase->eepromSelectorRightFlex), flex);
+}
+
+uint8_t SelectorParams::get_extruders(void){
+  return eeprom_read_byte(&(eepromBase->eepromExtruders));
+}
+
+int8_t SelectorParams::get_offset(void){
+  return (int8_t)eeprom_read_byte(&(eepromBase->eepromExtruders));
+}
+
+uint16_t SelectorParams::get_span(void){
+  return eeprom_read_word(&(eepromBase->eepromSelectorSpan));
+}
+
+uint16_t SelectorParams::get_left_flex(void){
+  return eeprom_read_word(&(eepromBase->eepromSelectorLeftFlex));
+}
+
+uint16_t SelectorParams::get_right_flex(void){
+  return eeprom_read_word(&(eepromBase->eepromSelectorRightFlex));
 }

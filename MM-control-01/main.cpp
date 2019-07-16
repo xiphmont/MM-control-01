@@ -295,8 +295,9 @@ void setup()
         motion_set_idler(filament);
     }
 
-	if (digitalRead(A1) == 1) isFilamentLoaded = true;
-
+    if (digitalRead(A1) == 1){
+      isFilamentLoaded = true;
+    }
 }
 
 
@@ -319,8 +320,10 @@ void setup()
 //! 00 | 00 | 01 | 00 | 00 | filament 3
 //! 00 | 00 | 00 | 01 | 00 | filament 4
 //! 00 | 00 | 00 | 00 | 01 | filament 5
-//! 01 | 01 | 00 | 00 | 00 | filament 6
-//! 01 | 00 | bb | 00 | 00 | park position
+//! 01 | 01 | 00 | 00 | 00 | filament 6*
+//! 01 | 00 | 01 | 00 | 00 | filament 7*
+//! 01 | 00 | 00 | 01 | 00 | filament 8*
+//! 01 | 00 | 00 | 00 | bb | park position
 //!
 //! @n R - Red LED
 //! @n G - Green LED
@@ -480,10 +483,10 @@ void process_commands(FILE* inout)
 			    if (isFilamentLoaded) state = S::SignalFilament;
 			    else
 			    {
-                    select_extruder(value);
-                    feed_filament();
+                              select_extruder(value);
+                              feed_filament();
 			    }
-                fprintf_P(inout, PSTR("ok\n"));
+                            fprintf_P(inout, PSTR("ok\n"));
 			}
 		}
 		else if (sscanf_P(line, PSTR("M%d"), &value) > 0)
@@ -528,7 +531,7 @@ void process_commands(FILE* inout)
 			else if (value == 2) //! S2 Read build nr.
 				fprintf_P(inout, PSTR("%dok\n"), fw_buildnr);
 			else if (value == 3) //! S3 Read drive errors
-			    fprintf_P(inout, PSTR("%dok\n"), DriveError::get());
+			        fprintf_P(inout, PSTR("%dok\n"), DriveError::get());
 		}
 		//! F<nr.> \<type\> filament type. <nr.> filament number, \<type\> 0, 1 or 2. Does nothing.
 		else if (sscanf_P(line, PSTR("F%d %d"), &value, &value0) > 0)
@@ -539,6 +542,10 @@ void process_commands(FILE* inout)
 				filament_type[value] = value0;
 				fprintf_P(inout, PSTR("ok\n"));
 			}
+		}
+		else if (sscanf_P(line, PSTR("F*")) >= 0)
+		{
+                        fprintf_P(inout, PSTR("%dok\n"), EXTRUDERS);
 		}
 		else if (sscanf_P(line, PSTR("C%d"), &value) > 0)
 		{
@@ -566,21 +573,21 @@ void process_commands(FILE* inout)
 				state = S::Idle;
 			}
 		}
-        else if (sscanf_P(line, PSTR("W%d"), &value) > 0)
-        {
-            if (value == 0) //! W0 Wait for user click
-            {
-                state = S::Wait;
-            }
-        }
-        else if (sscanf_P(line, PSTR("K%d"), &value) > 0)
-        {
-            if ((value >= 0) && (value < EXTRUDERS)) //! K<nr.> cut filament
-            {
-                mmctl_cut_filament(value);
-                fprintf_P(inout, PSTR("ok\n"));
-            }
-        }
+                else if (sscanf_P(line, PSTR("W%d"), &value) > 0)
+                  {
+                    if (value == 0) //! W0 Wait for user click
+                      {
+                        state = S::Wait;
+                      }
+                  }
+                else if (sscanf_P(line, PSTR("K%d"), &value) > 0)
+                  {
+                    if ((value >= 0) && (value < EXTRUDERS)) //! K<nr.> cut filament
+                      {
+                        mmctl_cut_filament(value);
+                        fprintf_P(inout, PSTR("ok\n"));
+                      }
+                  }
 	}
 	else
 	{ //nothing received

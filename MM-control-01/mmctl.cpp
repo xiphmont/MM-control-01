@@ -206,7 +206,7 @@ void select_extruder(int new_extruder)
     set_extruder_led(active_extruder, ORANGE);
     active_extruder = new_extruder;
 
-    motion_set_idler_selector((new_extruder == EXTRUDERS) ? new_extruder : EXTRUDERS), new_extruder);
+    motion_set_idler_selector((new_extruder == EXTRUDERS) ? EXTRUDERS - 1: new_extruder, new_extruder);
 
     shr16_set_led(0x000);
     set_extruder_led(active_extruder, GREEN);
