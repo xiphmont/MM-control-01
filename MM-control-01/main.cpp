@@ -253,9 +253,9 @@ void unrecoverable_error()
 //! @n b - blinking
 void setup()
 {
-    permanentStorageInit();
-	shr16_init(); // shift register
-	led_blink(0);
+        permanentStorageInit();
+        shr16_init(); // shift register
+        led_blink(0);
 
 	uart0_init(); //uart0
 	uart1_init(); //uart1
@@ -281,26 +281,82 @@ void setup()
 	shr16_set_ena(7);
 	shr16_set_led(0x000);
 
-    // check if to goto the settings menu
-    if (buttonPressed() == Btn::middle)
-    {
-        state = S::Setup;
-    }
+        // check if to goto the settings menu
+        if (buttonPressed() == Btn::middle)
+          {
+            state = S::Setup;
+          } else {
+            state = S::Idle;
+          }
 
-    tmc2130_init(HOMING_MODE);
-    tmc2130_read_gstat(); //consume reset after power up
-    uint8_t filament;
-    if(FilamentLoaded::get(filament))
-    {
-        motion_set_idler(filament);
-    }
+        tmc2130_init(HOMING_MODE);
+        tmc2130_read_gstat(); //consume reset after power up
 
-    if (digitalRead(A1) == 1){
-      isFilamentLoaded = true;
-    }
+        // If this is not our first powerup, we have the extruder and
+        // calibration information stashed in permanent storage.  Fetch
+        // the number of extruders now.
+        extruders = SelectorParams::get_extruders();
+        // If extruder storage is uninitialized (haven't completed first
+        // power-up/handshake/calibration), extruders will be zero.  Do not attempt to do the
+        // calibration here and now as the i3 may yet issue a reset that
+        // will interrupt the process.  Do that first calibration after we
+        // have the initial handshake from the printer.
+
+        // Similarly, delay the filament load [previously done below] until handshake
+#if 0
+        uint8_t filament;
+        if(FilamentLoaded::get(filament))
+          {
+            motion_set_idler(filament);
+          }
+
+        if (digitalRead(A1) == 1){
+          isFilamentLoaded = true;
+        }
+#endif
+
 }
 
+//! @brief Initialization to complete after the printer handshake
 
+//! Performs first-time auto-calibration, determines parameters of the
+//! MMU (and any mods we know about/need to know about like extra
+//! extruders), then checks for loaded filament
+
+//! LED indication of states: see calibration code in stepper.cpp
+void delayed_setup()
+{
+  if (extruders == 0)
+    {
+      calibrate(); // side effects galore; determines our physical
+                   // parameters, stashes them in permanent storage,
+                   // homes everything.  Will not return on error.
+    }
+
+  // was a filment selected at power-down/power-loss?
+  uint8_t filament;
+  if(FilamentLoaded::get(filament))
+  {
+      if (digitalRead(A1) == 1){   // is filament present in the FINDA?
+        isFilamentLoaded = true;
+      }
+      // We think we know what filament we were using and a filament
+      // is in the rollers, so update panel and state to reflect this
+      // apparent reality.  Hopefully the selector agrees, not that we
+      // could move it even if it doesn't.
+      active_extruder = filament;
+      motion_set_idler(filament);
+      set_extruder_led(active_extruder, GREEN);
+  } else {
+    if (digitalRead(A1) == 1){    // is filament present in the FINDA?
+      // we have no saved state to indicate what filament this is.
+      // Don't do anything except set the loaded flag, because we're
+      // at least certain something is in the sensor.  If we're in a
+      // weird state, the user will have to sort it.
+      isFilamentLoaded = true;
+    }
+  }
+}
 
 //! @brief Select filament menu
 //!
@@ -332,6 +388,7 @@ void setup()
 //! @n b - blinking
 void manual_extruder_selector()
 {
+        if (extruders == 0) return;
         set_extruder_led(active_extruder, GREEN);
 
 	if ((Btn::left|Btn::right) & buttonPressed())
@@ -341,7 +398,7 @@ void manual_extruder_selector()
 		switch (buttonPressed())
 		{
 		case Btn::right:
-			if (active_extruder < EXTRUDERS)
+			if (active_extruder < extruders)
 			{
 				select_extruder(active_extruder + 1);
 			}
@@ -356,7 +413,7 @@ void manual_extruder_selector()
 		delay(500);
 	}
 
-	if (active_extruder == EXTRUDERS)
+	if (active_extruder == extruders)
 	{
                 set_extruder_led(active_extruder, ORANGE);
 		delay(50);
@@ -390,7 +447,7 @@ void loop()
         break;
     case S::Idle:
         manual_extruder_selector();
-        if(Btn::middle == buttonPressed() && active_extruder < EXTRUDERS)
+        if(Btn::middle == buttonPressed() && active_extruder < extruders)
         {
             set_extruder_led(active_extruder, ORANGE);
             delay(500);
@@ -438,6 +495,9 @@ void loop()
 //! @param[in,out] inout struct connected to serial line to be used
 //!
 //! All commands have syntax in form of one letter integer number.
+
+//! no need to guard for calibration/init here; we won't get commands
+//! from the printer unless the handshake and init succeeded
 void process_commands(FILE* inout)
 {
 	static char line[32];
@@ -468,7 +528,7 @@ void process_commands(FILE* inout)
         //! T<nr.> change to filament <nr.>
 		if (sscanf_P(line, PSTR("T%d"), &value) > 0)
 		{
-			if ((value >= 0) && (value < EXTRUDERS))
+			if ((value >= 0) && (value < extruders))
 			{
 			    state = S::Printing;
 				switch_extruder_withSensor(value);
@@ -478,7 +538,7 @@ void process_commands(FILE* inout)
         //! L<nr.> Load filament <nr.>
 		else if (sscanf_P(line, PSTR("L%d"), &value) > 0)
 		{
-			if ((value >= 0) && (value < EXTRUDERS))
+			if ((value >= 0) && (value < extruders))
 			{
 			    if (isFilamentLoaded) state = S::SignalFilament;
 			    else
@@ -528,15 +588,23 @@ void process_commands(FILE* inout)
 				fprintf_P(inout, PSTR("ok\n"));
 			else if (value == 1) //! S1 Read version
 				fprintf_P(inout, PSTR("%dok\n"), fw_version);
-			else if (value == 2) //! S2 Read build nr.
-				fprintf_P(inout, PSTR("%dok\n"), fw_buildnr);
+			else if (value == 2) { //! S2 Read build nr.
+                          // delay responding OK (printer will wait
+                          // indefinitely at this point) until we have
+                          // performed any delayed setup postponed
+                          // until we knew the i3 wasn't going to
+                          // reset us.
+                          delayed_setup();
+                          // OK, now complete the handshake and get rolling
+                          fprintf_P(inout, PSTR("%dok\n"), fw_buildnr);
+                        }
 			else if (value == 3) //! S3 Read drive errors
 			        fprintf_P(inout, PSTR("%dok\n"), DriveError::get());
 		}
 		//! F<nr.> \<type\> filament type. <nr.> filament number, \<type\> 0, 1 or 2. Does nothing.
 		else if (sscanf_P(line, PSTR("F%d %d"), &value, &value0) > 0)
 		{
-			if (((value >= 0) && (value < EXTRUDERS)) &&
+			if (((value >= 0) && (value < extruders)) &&
 				((value0 >= 0) && (value0 <= 2)))
 			{
 				filament_type[value] = value0;
@@ -545,7 +613,7 @@ void process_commands(FILE* inout)
 		}
 		else if (sscanf_P(line, PSTR("F*")) >= 0)
 		{
-                        fprintf_P(inout, PSTR("%dok\n"), EXTRUDERS);
+                        fprintf_P(inout, PSTR("%dok\n"), extruders);
 		}
 		else if (sscanf_P(line, PSTR("C%d"), &value) > 0)
 		{
@@ -557,7 +625,7 @@ void process_commands(FILE* inout)
 		}
 		else if (sscanf_P(line, PSTR("E%d"), &value) > 0)
 		{
-			if ((value >= 0) && (value < EXTRUDERS)) //! E<nr.> eject filament
+			if ((value >= 0) && (value < extruders)) //! E<nr.> eject filament
 			{
 				eject_filament(value);
 				fprintf_P(inout, PSTR("ok\n"));
@@ -582,7 +650,7 @@ void process_commands(FILE* inout)
                   }
                 else if (sscanf_P(line, PSTR("K%d"), &value) > 0)
                   {
-                    if ((value >= 0) && (value < EXTRUDERS)) //! K<nr.> cut filament
+                    if ((value >= 0) && (value < extruders)) //! K<nr.> cut filament
                       {
                         mmctl_cut_filament(value);
                         fprintf_P(inout, PSTR("ok\n"));

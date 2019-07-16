@@ -16,12 +16,16 @@
 #include "permanent_storage.h"
 #include "config.h"
 
-//! Keeps track of selected filament. It is used for LED signalization and it is backed up to permanent storage
-//! so MMU can unload filament after power loss.
+//! how many extruders do we have?  Selector calibration will
+//! determine this, then back it up to permanent storage so we don't
+//! need to recalculate each reset.
+int extruders = 0;
+//! Keeps track of selected filament. It is used for LED signalization
+//! and it is backed up to permanent storage so MMU can unload
+//! filament after power loss.
 int active_extruder = 0;
 //! Keeps track of filament crossing selector. Selector can not be moved if filament crosses it.
 bool isFilamentLoaded = false;
-
 //! Number of pulley steps to eject and un-eject filament
 static const int eject_steps = 2500;
 
@@ -55,6 +59,7 @@ bool feed_filament(bool timeout)
 	bool loaded = false;
 	const uint_least8_t finda_limit = 10;
 
+        if (extruders == 0) return false;
 	motion_engage_idler();
 	set_pulley_dir_push();
 	if(tmc2130_mode == NORMAL_MODE)
@@ -130,6 +135,7 @@ bool feed_filament(bool timeout)
 void resolve_failed_loading(){
     bool resolved = false;
     bool exit = false;
+    if (extruders == 0) return;
     while(!exit){
         switch (buttonClicked())
         {
@@ -174,6 +180,7 @@ void resolve_failed_loading(){
 //! @param new_extruder Filament to be selected
 void switch_extruder_withSensor(int new_extruder)
 {
+    if (extruders == 0) return;
     set_extruder_led(active_extruder, ORANGE);
     active_extruder = new_extruder;
 
@@ -198,26 +205,29 @@ void switch_extruder_withSensor(int new_extruder)
 //! @brief Select filament
 //!
 //! Does not unload or load filament, just moves selector and idler,
-//! caller is responsible for ensuring, that filament is not loaded when caled.
+//! caller is responsible for ensuring that filament is not loaded when called.
 //!
 //! @param new_extruder Filament to be selected
 void select_extruder(int new_extruder)
 {
+    if(extruders == 0) return;
     set_extruder_led(active_extruder, ORANGE);
     active_extruder = new_extruder;
 
-    motion_set_idler_selector((new_extruder == EXTRUDERS) ? EXTRUDERS - 1: new_extruder, new_extruder);
+    motion_set_idler_selector((new_extruder == extruders) ? extruders - 1: new_extruder, new_extruder);
 
     shr16_set_led(0x000);
     set_extruder_led(active_extruder, GREEN);
 }
+
 //! @brief cut filament
-//! @par filament filament 0 to EXTRUDERS-1
+//! @par filament filament 0 to extruders-1
 void mmctl_cut_filament(uint8_t filament)
 {
     const int cut_steps_pre = 700;
     const int cut_steps_post = 150;
 
+    if(extruders==0) return;
     active_extruder = filament;
 
     if (isFilamentLoaded)  unload_filament_withSensor();
@@ -247,9 +257,9 @@ void mmctl_cut_filament(uint8_t filament)
         steps++;
         delayMicroseconds(1500);
     }
-    motion_set_idler_selector(filament, EXTRUDERS);
-    motion_set_idler_selector(filament, 0);
-    motion_set_idler_selector(filament, filament);
+    motion_set_idler_selector(filament, extruders); // all the way to park
+    motion_set_idler_selector(filament, 0);         // then all the way back
+    motion_set_idler_selector(filament, filament);  // and back to active
     if(!feed_filament(true)){resolve_failed_loading();}
 }
 
@@ -257,14 +267,18 @@ void mmctl_cut_filament(uint8_t filament)
 //! Move selector sideways and push filament forward little bit, so user can catch it,
 //! unpark idler at the end to user can pull filament out.
 //! If there is still filament detected by PINDA unload it first.
-//! If we are want to eject fil 0-2, move selector to position 4 (right),
-//! if we want to eject filament 3 - 4, move selector to position 0 (left)
-//! maybe we can also move selector to service position in the future?
-//! @param filament filament 0 to 4
+//! If we are want to eject fil on the left, move selector to park,
+//! if we want to eject filament on the right, move selector to position 0 (left)
+
+//! maybe we can always move selector to service position in the future?
+//! no, not enough room given filament expansion mods
+
+//! @par filament filament 0 to extruders-1
 void eject_filament(uint8_t filament)
 {
+    if (extruders == 0) return;
     active_extruder = filament;
-    const uint8_t selector_position = (filament <= EXTRUDERS/2) ? EXTRUDERS-1 : 0;
+    const uint8_t selector_position = (filament <= extruders/2) ? extruders : 0;
 
     if (isFilamentLoaded)  unload_filament_withSensor();
 
@@ -289,6 +303,7 @@ void eject_filament(uint8_t filament)
 //! @brief restore state before eject filament
 void recover_after_eject()
 {
+    if (extruders == 0) return;
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
     motion_engage_idler();
     set_pulley_dir_pull();
@@ -309,6 +324,7 @@ static bool checkOk()
     bool _ret = false;
     int _steps = 0;
     int _endstop_hit = 0;
+    if (extruders == 0) return _ret;
 
 
     // filament in FINDA, let's try to unload it
@@ -376,6 +392,7 @@ static bool checkOk()
 //! @retval false failure
 bool mmctl_IsOk()
 {
+    if (extruders == 0) return false;
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
     motion_engage_idler();
     const bool retval = checkOk();
@@ -390,6 +407,7 @@ bool mmctl_IsOk()
 //!  * false Do not disengage idler after movement
 void load_filament_withSensor(bool disengageIdler)
 {
+    if (extruders == 0) return;
     FilamentLoaded::set(active_extruder);
     motion_engage_idler();
 
@@ -520,6 +538,7 @@ void load_filament_withSensor(bool disengageIdler)
 
 void unload_filament_withSensor()
 {
+    // allow unload attemps even without calibraiton
     // unloads filament from extruder - filament is above Bondtech gears
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
 
@@ -679,6 +698,7 @@ void unload_filament_withSensor()
 void load_filament_inPrinter()
 {
 
+    if (extruders == 0) return;
     motion_engage_idler();
     set_pulley_dir_push();
 

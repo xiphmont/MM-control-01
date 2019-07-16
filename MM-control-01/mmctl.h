@@ -5,6 +5,7 @@
 
 #include <inttypes.h>
 
+extern int extruders;
 extern int active_extruder;
 extern bool isFilamentLoaded;
 

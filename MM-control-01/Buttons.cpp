@@ -33,7 +33,7 @@ bool settings_select_filament()
         if (Btn::middle == buttonPressed())
         {
             motion_set_idler_selector(active_extruder);
-            if (active_extruder < EXTRUDERS) settings_bowden_length();
+            if (active_extruder < extruders) settings_bowden_length();
             else
             {
                 select_extruder(0);
@@ -56,6 +56,7 @@ bool settings_select_filament()
 //! 11 | 00 | 00 | 01 | 00 | setup bowden length
 //! 11 | 00 | 01 | 00 | 00 | erase EEPROM if unlocked
 //! 11 | 01 | 00 | 00 | 00 | unlock EEPROM erase
+//! 11 | 01 | 00 | 00 | 01 | autocalibration
 //! 11 | 00 | 00 | 00 | 00 | exit setup menu
 //!
 //! @n R - Red LED
@@ -65,6 +66,7 @@ bool settings_select_filament()
 //!
 //! @retval true continue
 //! @retval false exit
+#define SETUP_EXITPOS 5
 bool setupMenu()
 {
     static bool onEnter = true;
@@ -79,23 +81,28 @@ bool setupMenu()
         onEnter = false;
     }
 
-	static int _menu = 0;
-	bool _exit = false;
-	static bool eraseLocked = true;
-	static bool inBowdenCalibration = false;
+    static int _menu = 0;
+    bool _exit = false;
+    static bool eraseLocked = true;
+    static bool inBowdenCalibration = false;
 
-	if (inBowdenCalibration)
-	{
-	    _exit = settings_select_filament();
-	}
-	else
-	{
+    if (inBowdenCalibration)
+      {
+        _exit = settings_select_filament();
+      }
+    else
+      {
 
-        shr16_set_led(1 << 2 * 4);
+        shr16_set_led(ORANGE << 2 * 4);
         delay(1);
-        shr16_set_led(2 << 2 * 4);
+        shr16_set_led(GREEN << 2 * 4);
         delay(1);
-        shr16_set_led(2 << 2 * _menu);
+
+        if(_menu < 4)
+          shr16_set_led(GREEN << 2 * _menu);
+        else if (_menu < SETUP_EXITPOS)
+          shr16_set_led((GREEN << 2*3) | (GREEN << 2 * (_menu-4)));
+
         delay(1);
 
         switch (buttonPressed())
@@ -123,19 +130,22 @@ bool setupMenu()
             case 3: //unlock erase
                 eraseLocked = false;
                 break;
-            case 4: // exit menu
+            case 4:
+                calibrate();
+                break;
+            case 5: // exit menu
                 _exit = true;
                 break;
             }
             break;
         case Btn::left:
-            if (_menu < 4) { _menu++; delay(800); }
+            if (_menu < 5) { _menu++; delay(800); }
             break;
         default:
             break;
         }
-	}
-		
+      }
+
 
     if (_exit)
     {

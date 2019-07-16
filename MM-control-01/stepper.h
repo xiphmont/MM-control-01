@@ -7,10 +7,11 @@
 #include "config.h"
 #include <inttypes.h>
 
-extern int8_t filament_type[EXTRUDERS];
+extern int8_t filament_type[MAX_EXTRUDERS];
 
+void calibrate();
 void home();
-bool calibrate_idler();
+bool home_idler();
 
 int get_idler_steps(int current_filament, int next_filament);
 int get_selector_steps(int current_filament, int next_filament);

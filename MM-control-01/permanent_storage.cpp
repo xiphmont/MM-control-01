@@ -25,9 +25,9 @@ typedef struct __attribute__ ((packed))
 	uint8_t eepromDriveErrorCountL[2];
         uint8_t eepromExtruders;
         uint16_t eepromSelectorSpan;
-        uint16_t eepromSelectorLeftFlex;
-        uint16_t eepromSelectorRightFlex;
-        uint8_t eepromSelectorOffset;
+        int16_t eepromSelectorLeftFlex;
+        int16_t eepromSelectorRightFlex;
+        int8_t eepromSelectorOffset;
 }eeprom_t;
 static_assert(sizeof(eeprom_t) - 2 <= E2END, "eeprom_t doesn't fit into EEPROM available.");
 //! @brief EEPROM layout version
@@ -233,7 +233,7 @@ int16_t FilamentLoaded::getIndex()
 }
 
 //! @brief Get last filament loaded
-//! @par [in,out] filament filament number 0 to EXTRUDERS-1
+//! @par [in,out] filament filament number 0 to extruders-1
 //! @retval true success
 //! @retval false failed
 bool FilamentLoaded::get(uint8_t& filament)
@@ -242,7 +242,7 @@ bool FilamentLoaded::get(uint8_t& filament)
     if ((index < 0) || (static_cast<uint16_t>(index) >= ARR_SIZE(eeprom_t::eepromFilament))) return false;
     const uint8_t rawFilament = eeprom_read_byte(&(eepromBase->eepromFilament[index]));
     filament = 0x0f & rawFilament;
-    if (filament >= EXTRUDERS) return false;
+    if (filament >= extruders) return false;
     const uint8_t status = getStatus();
     if (!(status == KeyFront1
         || status == KeyReverse1
@@ -259,7 +259,7 @@ bool FilamentLoaded::get(uint8_t& filament)
 //! keys. Fails if storing with all other keys failed.
 //!
 //! @par filament bottom 4 bits are stored
-//! but only value 0 to EXTRUDERS-1 passes validation in FilamentLoaded::get()
+//! but only value 0 to extruders-1 passes validation in FilamentLoaded::get()
 //! @retval true success
 //! @retval false failed
 bool FilamentLoaded::set(uint8_t filament)
@@ -386,37 +386,38 @@ void SelectorParams::set_extruders(uint8_t extruders){
 }
 
 void SelectorParams::set_offset(int8_t offset){
-  eeprom_update_byte(&(eepromBase->eepromSelectorOffset), (uint8_t)offset);
+  eeprom_update_byte((uint8_t *)&(eepromBase->eepromSelectorOffset), (uint8_t)offset);
 }
 
 void SelectorParams::set_span(uint16_t span){
   eeprom_update_word(&(eepromBase->eepromSelectorSpan), span);
 }
 
-void SelectorParams::set_left_flex(uint16_t flex){
-  eeprom_update_word(&(eepromBase->eepromSelectorLeftFlex), flex);
+void SelectorParams::set_left_flex(int16_t flex){
+  eeprom_update_word((uint16_t *)&(eepromBase->eepromSelectorLeftFlex), (uint16_t)flex);
 }
 
-void SelectorParams::set_right_flex(uint16_t flex){
-  eeprom_update_word(&(eepromBase->eepromSelectorRightFlex), flex);
+void SelectorParams::set_right_flex(int16_t flex){
+  eeprom_update_word((uint16_t *)&(eepromBase->eepromSelectorRightFlex), (uint16_t)flex);
 }
 
 uint8_t SelectorParams::get_extruders(void){
-  return eeprom_read_byte(&(eepromBase->eepromExtruders));
+  uint8_t byte = eeprom_read_byte(&(eepromBase->eepromExtruders));
+  return byte==0xff?0:byte;
 }
 
 int8_t SelectorParams::get_offset(void){
-  return (int8_t)eeprom_read_byte(&(eepromBase->eepromExtruders));
+  return (int8_t)eeprom_read_byte((uint8_t *)&(eepromBase->eepromSelectorOffset));
 }
 
 uint16_t SelectorParams::get_span(void){
   return eeprom_read_word(&(eepromBase->eepromSelectorSpan));
 }
 
-uint16_t SelectorParams::get_left_flex(void){
-  return eeprom_read_word(&(eepromBase->eepromSelectorLeftFlex));
+int16_t SelectorParams::get_left_flex(void){
+  return (int16_t)eeprom_read_word((uint16_t *)&(eepromBase->eepromSelectorLeftFlex));
 }
 
-uint16_t SelectorParams::get_right_flex(void){
-  return eeprom_read_word(&(eepromBase->eepromSelectorRightFlex));
+int16_t SelectorParams::get_right_flex(void){
+  return (int16_t)eeprom_read_word((uint16_t *)&(eepromBase->eepromSelectorRightFlex));
 }

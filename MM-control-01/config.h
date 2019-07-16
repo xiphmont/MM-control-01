@@ -126,9 +126,6 @@
 //max number of extruders in EEPROM layout
 #define MAX_EXTRUDERS 8
 
-// actual number of extruders
-#define EXTRUDERS 6
-
 //number of extruder indicators (LEDs)
 #define LEDS 5
 
