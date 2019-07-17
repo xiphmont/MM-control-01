@@ -96,17 +96,17 @@ private:
 class SelectorParams
 {
  public:
-  static uint8_t  get_extruders();
-  static uint8_t  get_idler_offset();
+  static uint8_t get_extruders();
+  static uint8_t get_idler_offset();
   static uint16_t get_span();
-  static uint8_t get_right_flex();
-  static uint8_t get_left_flex();
+  static uint8_t get_right_offset();
+  static uint8_t get_left_offset();
 
   static void set_extruders(uint8_t);
   static void set_idler_offset(uint8_t);
   static void set_span(uint16_t);
-  static void set_right_flex(uint8_t);
-  static void set_left_flex(uint8_t);
+  static void set_right_offset(uint8_t);
+  static void set_left_offset(uint8_t);
 };
 
 #endif /* PERMANENT_STORAGE_H_ */

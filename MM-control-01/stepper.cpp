@@ -27,8 +27,8 @@ static const int idler_parking_steps = 217;
 
 static bool isSelectorHomed = false;
 static int  ActiveSelector = -1;
-static int  selector_left_flex;
-static int  selector_right_flex;
+static int  selector_left_offset;
+static int  selector_right_offset;
 
 // 14mm of leadscrew travel, minus PETG shrinkage
 static const int selector_steps = 697;
@@ -47,12 +47,12 @@ static int set_pulley_direction(int _steps);
 static int get_selector_steps(int next_filament){
   int current_filament = ActiveSelector;
   int steps = 0;
-  if (current_filament == -1) { // coming off left stop
-    //steps += selector_left_flex;
+  if (current_filament == -1) { // coming off left stop; right now we never do this
+    steps += selector_left_offset;
     current_filament++;
   }
   if (current_filament == extruders+1) { // coming off right stop
-    //steps -= selector_right_flex;
+    steps -= selector_right_offset;
     current_filament--;
   }
   if (current_filament == extruders) { // coming out of park
@@ -171,7 +171,7 @@ static bool calibrate_idler(){
 
   // try the calibration process five times before asking for help
   while(1){
-    int32_t flex = 0;
+    int32_t offset = 0;
     attempt++;
 
     // how many times have we already tried and failed?  Indicate progress outside stepper loop.
@@ -231,15 +231,15 @@ static bool calibrate_idler(){
         break;
       }
       tries[i] = steps;
-      flex += steps;
+      offset += steps;
     }
     if(fail_out) continue; // propagate fail from inner loop
 
     // are all our tries within tolerance?
-    flex /= IDLER_CAL_SAMPLES;  // now the average
+    offset /= IDLER_CAL_SAMPLES;  // now the average
     fail_out = 0;
     for(i=0; i<IDLER_CAL_SAMPLES; i++){
-      steps = flex - tries[i];
+      steps = offset - tries[i];
       if (steps < -IDLER_CAL_TOLERANCE || steps > IDLER_CAL_TOLERANCE){
         // out of bounds.  fail.
         if(attempt == IDLER_CAL_ATTEMPTS) {
@@ -351,8 +351,8 @@ static bool calibrate_selector() {
   // try the entire process five times before asking for help
   while(1){
     int32_t raw_span = 0;
-    int32_t right_flex = 0;
-    int32_t left_flex = 0;
+    int32_t right_offset = 0;
+    int32_t left_offset = 0;
     attempt++;
 
     // how many times have we already tried and failed?  Indicate progress outside stepper loop.
@@ -414,15 +414,15 @@ static bool calibrate_selector() {
         break;
       }
       tries[i] = steps;
-      left_flex += steps;
+      left_offset += steps;
     }
     if(fail_out) continue; // propagate fail from inner loop
 
     // are all our tries within ~.1mm?
-    left_flex /= SELECTOR_CAL_SAMPLES;  // now the average
+    left_offset /= SELECTOR_CAL_SAMPLES;  // now the average
     fail_out = 0;
     for(i=0; i<SELECTOR_CAL_SAMPLES; i++){
-      steps = left_flex - tries[i];
+      steps = left_offset - tries[i];
       if (steps < -SELECTOR_CAL_TOLERANCE || steps > SELECTOR_CAL_TOLERANCE){
         // out of bounds.  fail.
         if(attempt == SELECTOR_CAL_ATTEMPTS) {
@@ -438,7 +438,7 @@ static bool calibrate_selector() {
       }
     }
     if(fail_out) continue; // propagate fail from inner loop
-    left_flex -= SELECTOR_CAL_BACKOFF_STEPS; // now the average deviation
+    left_offset -= SELECTOR_CAL_BACKOFF_STEPS; // now the average deviation
 
     // We've passed the left stop doublecheck.  Now go to right stop.
     steps = selector_cal_guard_move(SELECTOR_CAL_LEADSCREW_STEPS);
@@ -459,7 +459,7 @@ static bool calibrate_selector() {
     // verify right stop repeatability and adjust for flex.
     raw_span = steps;
 
-    // verify selector at stop and measure flex
+    // verify selector at stop and measure offset
     fail_out = 0;
     for(i=0; i < SELECTOR_CAL_SAMPLES; i++){
 
@@ -492,15 +492,15 @@ static bool calibrate_selector() {
       }
 
       tries[i] = steps;
-      right_flex += steps;
+      right_offset += steps;
     }
     if(fail_out) continue; // propagate fail from inner loop
 
     // are all our tries within ~.1mm?
-    right_flex /= SELECTOR_CAL_SAMPLES;
+    right_offset /= SELECTOR_CAL_SAMPLES;
     fail_out = 0;
     for(i=1; i<SELECTOR_CAL_SAMPLES; i++){
-      steps = right_flex - tries[i];
+      steps = right_offset - tries[i];
       if (steps < -SELECTOR_CAL_TOLERANCE || steps > SELECTOR_CAL_TOLERANCE){
         // out of bounds.  fail.
         if(attempt == SELECTOR_CAL_ATTEMPTS) {
@@ -517,7 +517,7 @@ static bool calibrate_selector() {
     }
     if(fail_out) continue; // propagate fail from inner loop
 
-    right_flex -= SELECTOR_CAL_BACKOFF_STEPS;
+    right_offset -= SELECTOR_CAL_BACKOFF_STEPS;
 
     // Success!  Leave our position where we are as we may have a coordinated move later
     tmc2130_init(tmc2130_mode);
@@ -528,8 +528,8 @@ static bool calibrate_selector() {
       if(raw_span < 4000){
         // MMU2S+6: base our alignments off the right stop
         extruders = 6;
-        raw_span = 3883; // ideal width 
-        left_flex = 50;  // ideal left offset
+        raw_span = 3883; // ideal width
+        left_offset = 50;  // ideal left offset
       }else{
         extruders = 8;
         //settings: ????
@@ -537,23 +537,23 @@ static bool calibrate_selector() {
     }else{
       extruders = 5;
       raw_span = 3758;
-      left_flex = 50;
+      left_offset = 50;
     }
 
     // save what we've found into permanent storage
-    if(left_flex<8) left_flex = 0;
-    if(left_flex>255) left_flex = 255;
-    if(right_flex<0) right_flex = 0;
-    if(right_flex>255) right_flex = 255;
+    if(left_offset<8) left_offset = 0;
+    if(left_offset>255) left_offset = 255;
+    if(right_offset<0) right_offset = 0;
+    if(right_offset>255) right_offset = 255;
     SelectorParams::set_extruders(extruders);
     SelectorParams::set_span(raw_span);
-    SelectorParams::set_right_flex(right_flex);
-    SelectorParams::set_left_flex(left_flex);
-    selector_park_steps = raw_span - right_flex - left_flex - (selector_steps*(extruders-1));
+    SelectorParams::set_right_offset(right_offset);
+    SelectorParams::set_left_offset(left_offset);
+    selector_park_steps = raw_span - right_offset - left_offset - (selector_steps*(extruders-1));
     isSelectorHomed = true;
     ActiveSelector = extruders+1; // at the right stop
-    selector_left_flex = left_flex;
-    selector_right_flex = right_flex;
+    selector_left_offset = left_offset;
+    selector_right_offset = right_offset;
     return true;
   }
 }
@@ -629,9 +629,9 @@ static bool home_selector() {
 
     // Success!  Leave position at right stop, update state.
     int span = SelectorParams::get_span();
-    selector_right_flex = SelectorParams::get_right_flex();
-    selector_left_flex = SelectorParams::get_left_flex();
-    selector_park_steps = span - selector_right_flex - selector_left_flex -
+    selector_right_offset = SelectorParams::get_right_offset();
+    selector_left_offset = SelectorParams::get_left_offset();
+    selector_park_steps = span - selector_right_offset - selector_left_offset -
       (selector_steps*(extruders-1));
     isSelectorHomed = true;
     ActiveSelector = extruders+1; // at the right stop

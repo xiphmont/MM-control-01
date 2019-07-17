@@ -25,8 +25,8 @@ typedef struct __attribute__ ((packed))
 	uint8_t eepromDriveErrorCountL[2];
         uint8_t eepromExtruders;
         uint16_t eepromSelectorSpan;
-        uint8_t eepromSelectorLeftFlex; // measured flex functions as filament offset
-        uint8_t eepromSelectorRightFlex;
+        uint8_t eepromSelectorLeftOffset;
+        uint8_t eepromSelectorRightOffset;
         uint8_t eepromIdlerOffset;
 }eeprom_t;
 static_assert(sizeof(eeprom_t) - 2 <= E2END, "eeprom_t doesn't fit into EEPROM available.");
@@ -393,12 +393,12 @@ void SelectorParams::set_span(uint16_t span){
   eeprom_update_word(&(eepromBase->eepromSelectorSpan), span);
 }
 
-void SelectorParams::set_left_flex(uint8_t flex){
-  eeprom_update_byte(&(eepromBase->eepromSelectorLeftFlex), flex);
+void SelectorParams::set_left_offset(uint8_t offset){
+  eeprom_update_byte(&(eepromBase->eepromSelectorLeftOffset), offset);
 }
 
-void SelectorParams::set_right_flex(uint8_t flex){
-  eeprom_update_byte(&(eepromBase->eepromSelectorRightFlex),flex);
+void SelectorParams::set_right_offset(uint8_t offset){
+  eeprom_update_byte(&(eepromBase->eepromSelectorRightOffset),offset);
 }
 
 uint8_t SelectorParams::get_extruders(void){
@@ -414,10 +414,10 @@ uint16_t SelectorParams::get_span(void){
   return eeprom_read_word(&(eepromBase->eepromSelectorSpan));
 }
 
-uint8_t SelectorParams::get_left_flex(void){
-  return eeprom_read_byte(&(eepromBase->eepromSelectorLeftFlex));
+uint8_t SelectorParams::get_left_offset(void){
+  return eeprom_read_byte(&(eepromBase->eepromSelectorLeftOffset));
 }
 
-uint8_t SelectorParams::get_right_flex(void){
-  return eeprom_read_byte(&(eepromBase->eepromSelectorRightFlex));
+uint8_t SelectorParams::get_right_offset(void){
+  return eeprom_read_byte(&(eepromBase->eepromSelectorRightOffset));
 }
