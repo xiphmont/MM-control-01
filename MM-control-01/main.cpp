@@ -601,7 +601,7 @@ void process_commands(FILE* inout)
 			        fprintf_P(inout, PSTR("%dok\n"), DriveError::get());
 		}
 		//! F<nr.> \<type\> filament type. <nr.> filament number, \<type\> 0, 1 or 2. Does nothing.
-		else if (sscanf_P(line, PSTR("F%d %d"), &value, &value0) > 0)
+		else if (sscanf_P(line, PSTR("F%d %d"), &value, &value0) == 2)
 		{
 			if (((value >= 0) && (value < extruders)) &&
 				((value0 >= 0) && (value0 <= 2)))
@@ -610,9 +610,11 @@ void process_commands(FILE* inout)
 				fprintf_P(inout, PSTR("ok\n"));
 			}
 		}
-		else if (sscanf_P(line, PSTR("F*")) >= 0)
-		{
-                        fprintf_P(inout, PSTR("%dok\n"), extruders);
+		else if (sscanf_P(line, PSTR("G%d"), &value) > 0) {
+                        if (value == 0) //! F0 Read number of extruders
+                                fprintf_P(inout, PSTR("%dok\n"), extruders);
+                        else if (value == 1) //! F1 Read currently selected extruder
+                                fprintf_P(inout, PSTR("%dok\n"), active_extruder);
 		}
 		else if (sscanf_P(line, PSTR("C%d"), &value) > 0)
 		{

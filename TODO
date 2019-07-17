@@ -1,0 +1,26 @@
+MMU+X: Features we can and probably should add
+
+Watch the FINDA and door sensors at all times. Print status realtime
+on LCD when loading. Watch if they're changing state when they
+shouldn't be.  We may be able to alert users of
+intermittency due to subtle miscalibration.
+
+DONE When selecting filament at the MMU, actually tell the bloody MK3 about it.
+
+'default' filament gcode should use the current filament, not switch to filament 1
+
+MMU calibration menu items:
+Repeat autosetup
+idler offset
+selector offset
+
+lights cheatsheet!
+
+Better state mapping of all failure possibilities, and recovery options that make sense
+
+Allow cancellation of non-timeout operations like filament load
+
+don't just light LEDs: send status to MK3 that it can print.
+
+Allow cancellation of prints from OctoPrint; will require intuiting
+when we're printing gcode fed in from USB
