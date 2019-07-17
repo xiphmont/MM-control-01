@@ -132,6 +132,9 @@ static int idler_cal_guard_move(int steps) {
     // loop even if we're going to disregard it due to startup.
     int sg = tmc2130_read_sg(AX_IDL);
     if (i>IDLER_CAL_STALLGUARD_PRESTEPS && sg==0){
+      // we missed a minimum of 4*16 steps to trigger this, remove it from the count
+      i-=63;
+      if(i<0)i=0;  // JIC
       break;
     }
 #if LED_SG_DIAG // diagnostic to display useful realtime stallguard data on LEDs
@@ -309,6 +312,9 @@ static int selector_cal_guard_move(int steps) {
     // loop even if we're going to disregard it due to startup.
     uint16_t sg = tmc2130_read_sg(AX_SEL);
     if (i>SELECTOR_CAL_STALLGUARD_PRESTEPS && sg==0){
+      // we missed a minimum of 4*2 steps to trigger this, remove it from the count
+      i-=7;
+      if(i<0)i=0;  // JIC
       break;
     }
 #if  LED_SG_DIAG // diagnostic to display useful realtime stallguard data on LEDs
@@ -456,7 +462,7 @@ static bool calibrate_selector() {
     }
 
     // We provisionally have our full span measurement: still need to
-    // verify right stop repeatability and adjust for flex.
+    // verify right stop repeatability
     raw_span = steps;
 
     // verify selector at stop and measure offset
@@ -518,6 +524,7 @@ static bool calibrate_selector() {
     if(fail_out) continue; // propagate fail from inner loop
 
     right_offset -= SELECTOR_CAL_BACKOFF_STEPS;
+    raw_span += right_offset; // use the repeated masurement to adjust our width slightly
 
     // Success!  Leave our position where we are as we may have a coordinated move later
     tmc2130_init(tmc2130_mode);
