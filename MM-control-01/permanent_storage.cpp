@@ -25,13 +25,13 @@ typedef struct __attribute__ ((packed))
 	uint8_t eepromDriveErrorCountL[2];
         uint8_t eepromExtruders;
         uint16_t eepromSelectorSpan;
-        int16_t eepromSelectorLeftFlex;
-        int16_t eepromSelectorRightFlex;
-        int8_t eepromSelectorOffset;
+        uint8_t eepromSelectorLeftFlex; // measured flex functions as filament offset
+        uint8_t eepromSelectorRightFlex;
+        uint8_t eepromIdlerOffset;
 }eeprom_t;
 static_assert(sizeof(eeprom_t) - 2 <= E2END, "eeprom_t doesn't fit into EEPROM available.");
 //! @brief EEPROM layout version
-static const uint8_t layoutVersion = 0xee;
+static const uint8_t layoutVersion = 0xae;
 
 //d = 6.3 mm        pulley diameter
 //c = pi * d        pulley circumference
@@ -385,20 +385,20 @@ void SelectorParams::set_extruders(uint8_t extruders){
   eeprom_update_byte(&(eepromBase->eepromExtruders), extruders);
 }
 
-void SelectorParams::set_offset(int8_t offset){
-  eeprom_update_byte((uint8_t *)&(eepromBase->eepromSelectorOffset), (uint8_t)offset);
+void SelectorParams::set_idler_offset(uint8_t offset){
+  eeprom_update_byte(&(eepromBase->eepromIdlerOffset), offset);
 }
 
 void SelectorParams::set_span(uint16_t span){
   eeprom_update_word(&(eepromBase->eepromSelectorSpan), span);
 }
 
-void SelectorParams::set_left_flex(int16_t flex){
-  eeprom_update_word((uint16_t *)&(eepromBase->eepromSelectorLeftFlex), (uint16_t)flex);
+void SelectorParams::set_left_flex(uint8_t flex){
+  eeprom_update_byte(&(eepromBase->eepromSelectorLeftFlex), flex);
 }
 
-void SelectorParams::set_right_flex(int16_t flex){
-  eeprom_update_word((uint16_t *)&(eepromBase->eepromSelectorRightFlex), (uint16_t)flex);
+void SelectorParams::set_right_flex(uint8_t flex){
+  eeprom_update_byte(&(eepromBase->eepromSelectorRightFlex),flex);
 }
 
 uint8_t SelectorParams::get_extruders(void){
@@ -406,18 +406,18 @@ uint8_t SelectorParams::get_extruders(void){
   return byte==0xff?0:byte;
 }
 
-int8_t SelectorParams::get_offset(void){
-  return (int8_t)eeprom_read_byte((uint8_t *)&(eepromBase->eepromSelectorOffset));
+uint8_t SelectorParams::get_idler_offset(void){
+  return eeprom_read_byte(&(eepromBase->eepromIdlerOffset));
 }
 
 uint16_t SelectorParams::get_span(void){
   return eeprom_read_word(&(eepromBase->eepromSelectorSpan));
 }
 
-int16_t SelectorParams::get_left_flex(void){
-  return (int16_t)eeprom_read_word((uint16_t *)&(eepromBase->eepromSelectorLeftFlex));
+uint8_t SelectorParams::get_left_flex(void){
+  return eeprom_read_byte(&(eepromBase->eepromSelectorLeftFlex));
 }
 
-int16_t SelectorParams::get_right_flex(void){
-  return (int16_t)eeprom_read_word((uint16_t *)&(eepromBase->eepromSelectorRightFlex));
+uint8_t SelectorParams::get_right_flex(void){
+  return eeprom_read_byte(&(eepromBase->eepromSelectorRightFlex));
 }

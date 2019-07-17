@@ -7,7 +7,6 @@
 #include "stepper.h"
 #include "permanent_storage.h"
 #include "main.h"
-#include "motion.h"
 
 const int ButtonPin = A2;
 
@@ -32,7 +31,7 @@ bool settings_select_filament()
         delay(500);
         if (Btn::middle == buttonPressed())
         {
-            motion_set_idler_selector(active_extruder);
+            select_idler_selector(active_extruder);
             if (active_extruder < extruders) settings_bowden_length();
             else
             {

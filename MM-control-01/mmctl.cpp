@@ -12,7 +12,6 @@
 #include "mmctl.h"
 #include "stepper.h"
 #include "Buttons.h"
-#include "motion.h"
 #include "permanent_storage.h"
 #include "config.h"
 
@@ -60,7 +59,7 @@ bool feed_filament(bool timeout)
 	const uint_least8_t finda_limit = 10;
 
         if (extruders == 0) return false;
-	motion_engage_idler();
+	engage_idler(true);
 	set_pulley_dir_push();
 	if(tmc2130_mode == NORMAL_MODE)
 	{
@@ -119,7 +118,7 @@ bool feed_filament(bool timeout)
 	}
 
 	tmc2130_disable_axis(AX_PUL, tmc2130_mode);
-	motion_disengage_idler();
+	engage_idler(false);
         set_extruder_led(active_extruder, GREEN);
 
 	return loaded;
@@ -133,41 +132,40 @@ bool feed_filament(bool timeout)
 //! right  | If no red LED is blinking, resume print, else same as middle button 
 //!
 void resolve_failed_loading(){
-    bool resolved = false;
-    bool exit = false;
-    if (extruders == 0) return;
-    while(!exit){
-        switch (buttonClicked())
-        {
-            case Btn::middle:
-                rehome();
-                motion_set_idler_selector(active_extruder);
-                if(feed_filament(true)){resolved = true;}
-            break;
+  bool resolved = false;
+  bool exit = false;
+  if (extruders == 0) return;
+  while(!exit){
+    switch (buttonClicked()){
+    case Btn::middle:
+      reset_idler();
+      reset_selector();
+      select_idler_selector(active_extruder);
+      if(feed_filament(true)){resolved = true;}
+      break;
+    case Btn::right:
+      if(!resolved){
+        reset_idler();
+        reset_selector();
+        select_idler_selector(active_extruder);
+        if(feed_filament(true)){resolved = true;}
+      }
+      if(resolved){
+        select_idler_selector(active_extruder);
+        engage_idler(true);
+        exit = true;
+      }
+      break;
 
-            case Btn::right:
-                if(!resolved){
-                    rehome();
-                    motion_set_idler_selector(active_extruder);
-                    if(feed_filament(true)){resolved = true;}
-                }
+    default:
+      if(resolved){
+        signal_ok_after_load_failure();}
+      else{
+        signal_load_failure();}
 
-                if(resolved){
-                    motion_set_idler_selector(active_extruder);
-                    motion_engage_idler();
-                    exit = true;
-                }
-            break;
-
-            default:
-                if(resolved){
-                    signal_ok_after_load_failure();}
-                else{
-                    signal_load_failure();}
-
-            break;
-        }
+      break;
     }
+  }
 }
 
 //! @brief Change filament
@@ -186,16 +184,15 @@ void switch_extruder_withSensor(int new_extruder)
 
     if (isFilamentLoaded)
     {
-        unload_filament_withSensor();
+      unload_filament_withSensor();
     }
 
-    motion_set_idler_selector(active_extruder);
-
+    select_idler_selector(active_extruder);
     set_extruder_led(active_extruder, ORANGE);
 
     if (!isFilamentLoaded)
     {
-            load_filament_withSensor();
+      load_filament_withSensor();
     }
 
     shr16_set_led(0x000);
@@ -214,7 +211,7 @@ void select_extruder(int new_extruder)
     set_extruder_led(active_extruder, ORANGE);
     active_extruder = new_extruder;
 
-    motion_set_idler_selector((new_extruder == extruders) ? extruders - 1: new_extruder, new_extruder);
+    select_idler_selector((new_extruder == extruders) ? extruders - 1: new_extruder, new_extruder);
 
     shr16_set_led(0x000);
     set_extruder_led(active_extruder, GREEN);
@@ -232,34 +229,32 @@ void mmctl_cut_filament(uint8_t filament)
 
     if (isFilamentLoaded)  unload_filament_withSensor();
 
-    motion_set_idler_selector(filament, filament);
+    select_idler_selector(filament, filament);
 
     if(!feed_filament(true)){resolve_failed_loading();}
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
 
-    motion_set_idler_selector(filament, filament + 1);
+    select_idler_selector(filament, filament + 1);
 
-    motion_engage_idler();
+    engage_idler(true);
     set_pulley_dir_push();
 
-    for (int steps = 0; steps < cut_steps_pre; ++steps)
-    {
-        do_pulley_step();
-        steps++;
-        delayMicroseconds(1500);
+    for (int steps = 0; steps < cut_steps_pre; ++steps){
+      do_pulley_step();
+      steps++;
+      delayMicroseconds(1500);
     }
-    motion_set_idler_selector(filament, 0);
+    select_idler_selector(filament, 0);
     set_pulley_dir_pull();
 
-    for (int steps = 0; steps < cut_steps_post; ++steps)
-    {
-        do_pulley_step();
-        steps++;
-        delayMicroseconds(1500);
+    for (int steps = 0; steps < cut_steps_post; ++steps){
+      do_pulley_step();
+      steps++;
+      delayMicroseconds(1500);
     }
-    motion_set_idler_selector(filament, extruders); // all the way to park
-    motion_set_idler_selector(filament, 0);         // then all the way back
-    motion_set_idler_selector(filament, filament);  // and back to active
+    select_idler_selector(filament, extruders); // all the way to park
+    select_idler_selector(filament, 0);         // then all the way back
+    select_idler_selector(filament, filament);  // and back to active
     if(!feed_filament(true)){resolve_failed_loading();}
 }
 
@@ -284,9 +279,9 @@ void eject_filament(uint8_t filament)
 
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
 
-    motion_set_idler_selector(filament, selector_position);
+    select_idler_selector(filament, selector_position);
 
-    motion_engage_idler();
+    engage_idler(true);
     set_pulley_dir_push();
 
     for (int steps = 0; steps < eject_steps; ++steps)
@@ -296,7 +291,7 @@ void eject_filament(uint8_t filament)
         delayMicroseconds(1500);
     }
 
-    motion_disengage_idler();
+    engage_idler(false);
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
 }
 
@@ -305,7 +300,7 @@ void recover_after_eject()
 {
     if (extruders == 0) return;
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
-    motion_engage_idler();
+    engage_idler(true);
     set_pulley_dir_pull();
     for (int steps = 0; steps < eject_steps; ++steps)
     {
@@ -313,9 +308,9 @@ void recover_after_eject()
         steps++;
         delayMicroseconds(1500);
     }
-    motion_disengage_idler();
+    engage_idler(false);
 
-    motion_set_idler_selector(active_extruder);
+    select_idler_selector(active_extruder);
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
 }
 
@@ -394,9 +389,9 @@ bool mmctl_IsOk()
 {
     if (extruders == 0) return false;
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
-    motion_engage_idler();
+    engage_idler(true);
     const bool retval = checkOk();
-    motion_disengage_idler();
+    engage_idler(false);
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
     return retval;
 }
@@ -409,7 +404,7 @@ void load_filament_withSensor(bool disengageIdler)
 {
     if (extruders == 0) return;
     FilamentLoaded::set(active_extruder);
-    motion_engage_idler();
+    engage_idler(true);
 
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
 
@@ -464,7 +459,7 @@ void load_filament_withSensor(bool disengageIdler)
 
 
 
-        motion_disengage_idler();
+        engage_idler(false);
         do
         {
             if (!_isOk)
@@ -480,7 +475,7 @@ void load_filament_withSensor(bool disengageIdler)
             {
                 case Btn::left:
                     // just move filament little bit
-                    motion_engage_idler();
+                    engage_idler(true);
                     set_pulley_dir_push();
 
                     for (int i = 0; i < 200; i++)
@@ -488,19 +483,19 @@ void load_filament_withSensor(bool disengageIdler)
                         do_pulley_step();
                         delayMicroseconds(5500);
                     }
-                    motion_disengage_idler();
+                    engage_idler(false);
                     break;
                 case Btn::middle:
                     // check if everything is ok
-                    motion_engage_idler();
+                    engage_idler(true);
                     _isOk = checkOk();
-                    motion_disengage_idler();
+                    engage_idler(false);
                     break;
                 case Btn::right:
                     // continue with loading
-                    motion_engage_idler();
+                    engage_idler(true);
                     _isOk = checkOk();
-                    motion_disengage_idler();
+                    engage_idler(false);
 
                     if (_isOk) //pridat do podminky flag ze od tiskarny prislo continue
                     {
@@ -513,7 +508,7 @@ void load_filament_withSensor(bool disengageIdler)
 
         } while ( !_continue );
 
-        motion_engage_idler();
+        engage_idler(true);
         set_pulley_dir_push();
         _loadSteps = 0;
         do
@@ -529,10 +524,10 @@ void load_filament_withSensor(bool disengageIdler)
         // nothing
     }
 
-    motion_feed_to_bondtech();
+    feed_to_bondtech();
 
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
-    if (disengageIdler) motion_disengage_idler();
+    if (disengageIdler) engage_idler(false);
     isFilamentLoaded = true;  // filament loaded
 }
 
@@ -542,17 +537,17 @@ void unload_filament_withSensor()
     // unloads filament from extruder - filament is above Bondtech gears
     tmc2130_init_axis(AX_PUL, tmc2130_mode);
 
-    motion_engage_idler(); // if idler is in parked position un-park him get in contact with filament
+    engage_idler(true); // if idler is in parked position un-park him get in contact with filament
 
     if (digitalRead(A1))
     {
-        motion_unload_to_finda();
+        unload_to_finda();
     }
     else
     {
         if (checkOk())
         {
-            motion_disengage_idler();
+            engage_idler(false);
             return;
         }
     }
@@ -606,7 +601,7 @@ void unload_filament_withSensor()
         bool _continue = false;
         bool _isOk = false;
 
-        motion_disengage_idler();
+        engage_idler(false);
         do
         {
             shr16_set_led(0x000);
@@ -629,7 +624,7 @@ void unload_filament_withSensor()
             {
             case Btn::left:
                 // just move filament little bit
-                motion_engage_idler();
+                engage_idler(true);
                 set_pulley_dir_pull();
 
                 for (int i = 0; i < 200; i++)
@@ -637,19 +632,19 @@ void unload_filament_withSensor()
                     do_pulley_step();
                     delayMicroseconds(5500);
                 }
-                motion_disengage_idler();
+                engage_idler(false);
                 break;
             case Btn::middle:
                 // check if everything is ok
-                motion_engage_idler();
+                engage_idler(true);
                 _isOk = checkOk();
-                motion_disengage_idler();
+                engage_idler(false);
                 break;
             case Btn::right:
                 // continue with unloading
-                motion_engage_idler();
+                engage_idler(true);
                 _isOk = checkOk();
-                motion_disengage_idler();
+                engage_idler(false);
 
                 if (_isOk)
                 {
@@ -664,7 +659,7 @@ void unload_filament_withSensor()
         } while (!_continue);
 
         set_extruder_led(active_extruder, GREEN);
-        motion_engage_idler();
+        engage_idler(true);
     }
     else
     {
@@ -677,7 +672,7 @@ void unload_filament_withSensor()
             delayMicroseconds(5000);
         }
     }
-    motion_disengage_idler();
+    engage_idler(false);
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
     isFilamentLoaded = false; // filament unloaded
 }
@@ -699,7 +694,7 @@ void load_filament_inPrinter()
 {
 
     if (extruders == 0) return;
-    motion_engage_idler();
+    engage_idler(true);
     set_pulley_dir_push();
 
     const unsigned long fist_segment_delay = 2600;
@@ -715,7 +710,7 @@ void load_filament_inPrinter()
 
         if ('A' == getc(uart_com))
         {
-            motion_door_sensor_detected();
+            door_sensor_detected();
             break;
         }
         do_pulley_step();
@@ -723,5 +718,5 @@ void load_filament_inPrinter()
     }
 
     tmc2130_disable_axis(AX_PUL, tmc2130_mode);
-    motion_disengage_idler();
+    engage_idler(false);
 }

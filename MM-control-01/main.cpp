@@ -19,7 +19,6 @@
 #include "permanent_storage.h"
 #include "version.h"
 #include "config.h"
-#include "motion.h"
 
 
 uint8_t tmc2130_mode = NORMAL_MODE;
@@ -307,7 +306,7 @@ void setup()
         uint8_t filament;
         if(FilamentLoaded::get(filament))
           {
-            motion_set_idler(filament);
+            select_idler(filament);
           }
 
         if (digitalRead(A1) == 1){
@@ -345,7 +344,7 @@ void delayed_setup()
       // apparent reality.  Hopefully the selector agrees, not that we
       // could move it even if it doesn't.
       active_extruder = filament;
-      motion_set_idler(filament);
+      select_idler(filament);
       set_extruder_led(active_extruder, GREEN);
   } else {
     if (digitalRead(A1) == 1){    // is filament present in the FINDA?
@@ -453,7 +452,7 @@ void loop()
             delay(500);
             if (Btn::middle == buttonPressed())
             {
-                motion_set_idler_selector(active_extruder);
+                select_idler_selector(active_extruder);
                 feed_filament();
             }
         }
