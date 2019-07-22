@@ -81,12 +81,21 @@
 
 extern int8_t filament_type[MAX_EXTRUDERS];
 
-void calibrate();
+void stepper_state_init(void);
+bool calibrate(bool retry_forever);
+bool home(bool retry_forever);
+uint8_t get_idler_offset();
+bool set_idler_offset(uint8_t);
+uint8_t get_selector_offset();
+bool set_selector_offset(uint8_t);
 
 void engage_idler(bool _unpark);
 void select_idler(int _idler);
 void reset_idler();
+bool home_idler();
 void reset_selector();
+bool home_idler();
+
 void select_idler_selector(uint8_t _idler_selector);
 void select_idler_selector(uint8_t idler, uint8_t selector);
 

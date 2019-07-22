@@ -18,7 +18,7 @@ int8_t filament_type[MAX_EXTRUDERS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 static bool isIdlerParked = false;
 static bool isIdlerHomed = false;
 static int  ActiveIdler = -1;
-static int idler_steps_after_homing;
+static int idler_offset;
 
 // 40 degrees of rotation between idlers
 static const int idler_steps = 355;
@@ -27,8 +27,8 @@ static const int idler_parking_steps = 217;
 
 static bool isSelectorHomed = false;
 static int  ActiveSelector = -1;
-static int  selector_left_offset;
-static int  selector_right_offset;
+static int  selector_left_offset = 0;
+static int  selector_right_offset = 0;
 
 // 14mm of leadscrew travel, minus PETG shrinkage
 static const int selector_steps = 697;
@@ -36,9 +36,19 @@ static const int selector_steps = 697;
 static int selector_park_steps = -1;
 static bool s_has_door_sensor = false;
 
+static void move_proportional(int _next_idler, bool _park, int _next_selector, uint8_t _tries);
 static int set_idler_direction(int _steps);
 static int set_selector_direction(int _steps);
-static int set_pulley_direction(int _steps);
+
+void stepper_state_init(){
+  tmc2130_init(HOMING_MODE);
+  tmc2130_read_gstat(); //consume reset after power up
+
+  // we may have need of a few cached values before homing
+  extruders = SelectorParams::get_extruders();
+  idler_offset = SelectorParams::get_idler_offset();
+  selector_left_offset = SelectorParams::get_left_offset();
+}
 
 //! @brief Compute steps for selector needed to change filament
 //! @param current_filament Currently selected filament
@@ -75,7 +85,7 @@ static int get_idler_steps(int next_filament, bool park) {
   int current_filament = ActiveIdler;
   int steps = 0;
   if (current_filament == -1) { // coming off stop
-    steps -= idler_steps_after_homing;
+    steps -= idler_offset;
     current_filament = 0;
   }
   if(isIdlerParked){
@@ -186,12 +196,9 @@ static bool calibrate_idler(){
     steps = idler_cal_guard_move(IDLER_CAL_BARREL_STEPS);
     if (steps == IDLER_CAL_BARREL_STEPS) {
       // Did not detect stop.  That's a fail.
-      if(attempt == IDLER_CAL_ATTEMPTS) {
-        // this is the fifth try, get help from the user.
-
-
-        // reset the attempt counter, then....
-        attempt=0;
+      if(attempt == IDLER_CAL_ATTEMPTS){
+        // Alert and fail.
+        return false;
       }
       // try again
       continue;
@@ -200,34 +207,24 @@ static bool calibrate_idler(){
     // verify idler is really at the stop and not just stuck
     // or stuttering.
 
-    // The MMU2s is flexy and the Triaminic is always adjusting its
-    // drive behavior, so we need to take that into account.  Hit the
-    // stop a few times from the same short distance and see if we get
-    // a repeatable number of steps.
+    // Hit the stop a few times from the same short distance and see
+    // if we get a repeatable number of steps.
     int tries[IDLER_CAL_SAMPLES];
     bool fail_out = 0;
     for(i=0; i < IDLER_CAL_SAMPLES; i++){
       steps = idler_cal_guard_move(-IDLER_CAL_BACKOFF_STEPS);
       if(steps < IDLER_CAL_BACKOFF_STEPS){
-        // Jammed? We shouldn't have a short count. Immediately fail and ask for help.
-
-
-        // then reset attempt counter and continue
-        attempt = 0;
-        fail_out = 1;
-        break;
+        // Jammed? We shouldn't have a short count. Immediately alert and fail.
+        return false;
       }
 
       // Hit the stop again and note the number of steps.
       steps = idler_cal_guard_move(IDLER_CAL_BACKOFF_STEPS*2);
       if(steps == IDLER_CAL_BACKOFF_STEPS*2){
         // did not detect stop.  That's a fail.
-        if(attempt == IDLER_CAL_ATTEMPTS) {
-          // This is the fifth try, get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+        if(attempt == IDLER_CAL_ATTEMPTS){
+          // Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -244,13 +241,10 @@ static bool calibrate_idler(){
     for(i=0; i<IDLER_CAL_SAMPLES; i++){
       steps = offset - tries[i];
       if (steps < -IDLER_CAL_TOLERANCE || steps > IDLER_CAL_TOLERANCE){
-        // out of bounds.  fail.
-        if(attempt == IDLER_CAL_ATTEMPTS) {
-          // We're out of bounds and this is the fifth try.  Get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+        // out of bounds tolerance.
+        if(attempt == IDLER_CAL_ATTEMPTS){
+          // Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -264,18 +258,21 @@ static bool calibrate_idler(){
     isIdlerHomed = true;
     isIdlerParked = false;
     ActiveIdler = -1;
-    idler_steps_after_homing = IDLER_CAL_HOMING_STEPS;
+    idler_offset = IDLER_CAL_HOMING_STEPS;
 
     tmc2130_init(tmc2130_mode);
     return true;
   }
 }
 
-static void home_idler(void){
-    calibrate_idler();
-    idler_steps_after_homing = SelectorParams::get_idler_offset();
+// forces immediate home operation
+bool home_idler(void){
+  if(!calibrate_idler()) return false;
+  idler_offset = SelectorParams::get_idler_offset();
+  return true;
 }
 
+// marks idler in need of homing
 void reset_idler(){
   isIdlerHomed = false;
 }
@@ -337,9 +334,8 @@ static int selector_cal_guard_move(int steps) {
 }
 
 // Side effects galore!  This determines positions of endstops,
-// intuits number of extruders from that, saves it all to permanent
-// storage, and then homes the selector.
-
+// intuits number of extruders from that, and then saves it all to permanent
+// storage.
 static bool calibrate_selector() {
   int i;
   int steps;
@@ -369,13 +365,10 @@ static bool calibrate_selector() {
     // Go directly to left stop
     steps = selector_cal_guard_move(-SELECTOR_CAL_LEADSCREW_STEPS);
     if (steps == SELECTOR_CAL_LEADSCREW_STEPS) {
-      // Dd not detect stop.  That's a fail.
+      // Dd not detect stop.
       if(attempt == SELECTOR_CAL_ATTEMPTS) {
-        // this is the fifth try, get help from the user.
-
-
-        // reset the attempt counter, then....
-        attempt=0;
+        //Alert and fail.
+        return false;
       }
       // try again
       continue;
@@ -391,29 +384,19 @@ static bool calibrate_selector() {
     int tries[SELECTOR_CAL_SAMPLES];
     bool fail_out = 0;
     for(i=0; i < SELECTOR_CAL_SAMPLES; i++){
-
       steps = selector_cal_guard_move(SELECTOR_CAL_BACKOFF_STEPS);
       if(steps < SELECTOR_CAL_BACKOFF_STEPS){
-        // Jammed? We shouldn't have a short count. Immediately fail and ask for help.
-
-
-
-        // then reset attempt counter and continue
-        attempt = 0;
-        fail_out = 1;
-        break;
+        // Jammed? We shouldn't have a short count. Immediately alert and fail.
+        return false;
       }
 
       // Hit the stop again and note the number of steps.
       steps = selector_cal_guard_move(-SELECTOR_CAL_BACKOFF_STEPS*2);
       if(steps == SELECTOR_CAL_BACKOFF_STEPS*2){
-        // did not detect stop.  That's a fail.
-        if(attempt == SELECTOR_CAL_ATTEMPTS) {
-          // This is the fifth try, get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+        // did not detect stop.
+        if(attempt == SELECTOR_CAL_ATTEMPTS){
+          //Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -430,13 +413,10 @@ static bool calibrate_selector() {
     for(i=0; i<SELECTOR_CAL_SAMPLES; i++){
       steps = left_offset - tries[i];
       if (steps < -SELECTOR_CAL_TOLERANCE || steps > SELECTOR_CAL_TOLERANCE){
-        // out of bounds.  fail.
-        if(attempt == SELECTOR_CAL_ATTEMPTS) {
-          // We're out of bounds and this is the fifth try.  Get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+        // out of bounds tolerance.
+        if(attempt == SELECTOR_CAL_ATTEMPTS){
+          // Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -449,13 +429,10 @@ static bool calibrate_selector() {
     // We've passed the left stop doublecheck.  Now go to right stop.
     steps = selector_cal_guard_move(SELECTOR_CAL_LEADSCREW_STEPS);
     if (steps == SELECTOR_CAL_LEADSCREW_STEPS) {
-      // did not detect stop.  That's a fail.
+      // did not detect stop.
       if(attempt == SELECTOR_CAL_ATTEMPTS) {
-        // This is the fifth try, get help from the user.
-
-
-        // reset the attempt counter, then....
-        attempt=0;
+        // Alert and fail.
+        return false;
       }
       // try again
       continue;
@@ -471,26 +448,17 @@ static bool calibrate_selector() {
 
       steps = selector_cal_guard_move(-SELECTOR_CAL_BACKOFF_STEPS);
       if(steps < SELECTOR_CAL_BACKOFF_STEPS){
-        // Jammed? Fail and ask for help.
-
-
-
-        // then reset attempt counter and continue
-        fail_out = 1;
-        attempt=0;
-        break;
+        // Jammed? Immediately alert and fail.
+        return false;
       }
 
       // Hit the stop again and note number of steps.
       steps = selector_cal_guard_move(SELECTOR_CAL_BACKOFF_STEPS*2);
       if(steps == SELECTOR_CAL_BACKOFF_STEPS*2){
-        // did not detect stop.  That's a fail.
+        // did not detect stop.
         if(attempt == SELECTOR_CAL_ATTEMPTS) {
-          // This is the fifth try, get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+          // Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -508,13 +476,10 @@ static bool calibrate_selector() {
     for(i=1; i<SELECTOR_CAL_SAMPLES; i++){
       steps = right_offset - tries[i];
       if (steps < -SELECTOR_CAL_TOLERANCE || steps > SELECTOR_CAL_TOLERANCE){
-        // out of bounds.  fail.
+        // out of bounds tolerance.
         if(attempt == SELECTOR_CAL_ATTEMPTS) {
-          // this is the fifth try, get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+          // Alert and fail
+          return false;
         }
         // try again
         fail_out = 1;
@@ -532,18 +497,19 @@ static bool calibrate_selector() {
     // based on our measurements... which version of the MMU2S or +X is this?
     // base our alignment off the right stop
     if(raw_span > 3800){
-      if(raw_span < 4000){
+      if(raw_span < 4100){
         // MMU2S+6: base our alignments off the right stop
         extruders = 6;
-        raw_span = 3883; // ideal width
+        raw_span = 3883 - 7; // ideal width minus a bit
         left_offset = 50;  // ideal left offset
       }else{
-        extruders = 8;
-        //settings: ????
+        // we don't do anything bigger.... yet.
+        // Alert
+        return false;
       }
     }else{
       extruders = 5;
-      raw_span = 3758;
+      raw_span = 3758 - 7; // ideal width minus a bit
       left_offset = 50;
     }
 
@@ -565,9 +531,8 @@ static bool calibrate_selector() {
   }
 }
 
-// shorter version of the calibration; only need to find the right
-// stop, no external side effects, updates local selector state
-static bool home_selector() {
+// shorter version of the calibration; only need to find the right stop.
+bool home_selector() {
   int i;
   int steps;
   int attempt = 0;
@@ -587,13 +552,10 @@ static bool home_selector() {
     // Go directly to right stop
     steps = selector_cal_guard_move(SELECTOR_CAL_LEADSCREW_STEPS);
     if (steps == SELECTOR_CAL_LEADSCREW_STEPS) {
-      // Dd not detect right stop.  That's a fail.
+      // Dd not detect right stop.
       if(attempt == SELECTOR_CAL_ATTEMPTS) {
-        // this is the fifth try, get help from the user.
-
-
-        // reset the attempt counter, then....
-        attempt=0;
+        // Alert and fail
+        return false;
       }
       // try again
       continue;
@@ -606,26 +568,17 @@ static bool home_selector() {
 
       steps = selector_cal_guard_move(-SELECTOR_CAL_BACKOFF_STEPS);
       if(steps < SELECTOR_CAL_BACKOFF_STEPS){
-        // Jammed? We shouldn't have a short count. Immediately fail and ask for help.
-
-
-
-        // then reset attempt counter and continue
-        attempt = 0;
-        fail_out = 1;
-        break;
+        // Jammed? We shouldn't have a short count. Immediately alert and fail.
+        return false;
       }
 
       // Hit the right stop again and note the number of steps.
       steps = selector_cal_guard_move(SELECTOR_CAL_BACKOFF_STEPS*2);
       if(steps == SELECTOR_CAL_BACKOFF_STEPS*2){
-        // did not detect stop.  That's a fail.
+        // did not detect stop.
         if(attempt == SELECTOR_CAL_ATTEMPTS) {
-          // This is the fifth try, get help from the user.
-
-
-          // reset the attempt counter, then....
-          attempt=0;
+          // Alert and fail.
+          return false;
         }
         // try again
         fail_out = 1;
@@ -649,18 +602,96 @@ static bool home_selector() {
   }
 }
 
+// marks selector in need of homing, but doe snot perform it immediately
 void reset_selector(){
   isSelectorHomed = false;
 }
 
-//! @brief Calibrate both idler and selector if already not done
-void calibrate(){
-  calibrate_idler();
-  SelectorParams::set_idler_offset(idler_steps_after_homing);
-  calibrate_selector();
+//! @brief Calibrate both idler and selector.
+bool calibrate(bool retry_forever){
+  while(1){
+    if(!calibrate_idler()){
+      if (retry_forever) continue;
+      return false;
+    }
+    break;
+  }
+  while(1){
+    if(!calibrate_selector()){
+      if(retry_forever) continue;
+      return false;
+    }
+    break;
+  }
+  SelectorParams::set_idler_offset(idler_offset);
   shr16_set_led(0x155);
   shr16_set_led(0x000);
   set_extruder_led(active_extruder, GREEN);
+  return true;
+}
+
+//! @brief Home both idler and selector.
+bool home(bool retry_forever){
+  while(1){
+    if(!home_idler()){
+      if (retry_forever) continue;
+      return false;
+    }
+    break;
+  }
+  while(1){
+    if(!home_selector()){
+      if(retry_forever) continue;
+      return false;
+    }
+    break;
+  }
+  return true;
+}
+
+//! @brief returns cached idler offset
+uint8_t get_idler_offset(){
+  return idler_offset;
+}
+
+//! @brief returns cached selector left offset
+uint8_t get_selector_offset(){
+  return selector_left_offset;
+}
+
+//! sets new absolute idler offset
+bool set_idler_offset(uint8_t new_offset){
+  if(!isIdlerHomed){
+    if(!home_idler())
+      return false;
+  }
+
+  // update the actual position in realtime
+  // guard move used for convenience, not to guard.  Offset can't get past the stop.
+  if(new_offset != idler_offset){
+    idler_cal_guard_move(idler_offset-new_offset);
+    idler_offset = new_offset;
+  }
+  return true;
+}
+
+//! @brief sets new selector left offset; if done in steps of 8, stall guarding works
+bool set_selector_offset(uint8_t new_offset){
+  if(digitalRead(A1)) return false;
+  if(!isSelectorHomed){
+    if(!home_selector())
+      return false;
+  }
+  // Move selector to active filament.  If we're at service position go to last filament.
+  move_proportional(ActiveIdler, isIdlerParked,
+                    ActiveSelector < extruders ? ActiveSelector : extruders - 1, 1);
+
+  // update the actual position in realtime
+  if(new_offset != idler_offset) {
+    if (idler_cal_guard_move(new_offset-selector_left_offset)) return false;
+    selector_left_offset = new_offset;
+  }
+  return true;
 }
 
 //! @brief move idler and selector in concert (becuase it looks cool)
@@ -673,9 +704,17 @@ static void move_proportional(int _next_idler, bool _park, int _next_selector, u
     int idler_steps = 0;
     int selector_steps = 0;
 
+    while(digitalRead(A1) == 1 && selector_steps) {
+      // something went very wrong; we can't move the selector with filament loaded.
+        cry_for_help();
+    }
+
     // check homing status, then get steps to be done and set direction
     if(ActiveIdler != _next_idler || _park != isIdlerParked){
-      if(!isIdlerHomed) home_idler();
+      if(!isIdlerHomed){
+        if (!home_idler())
+          continue;
+      }
       if(_next_idler == -1) _next_idler = 0;
       idler_steps = get_idler_steps(_next_idler, _park);
       idler_steps = set_idler_direction(idler_steps);
@@ -683,15 +722,13 @@ static void move_proportional(int _next_idler, bool _park, int _next_selector, u
       ActiveIdler = _next_idler;
     }
     if(ActiveSelector != _next_selector){
-      if(!isSelectorHomed) home_selector();
+      if(!isSelectorHomed){
+        if (!home_selector())
+          continue;
+      }
       selector_steps = get_selector_steps(_next_selector);
       selector_steps = set_selector_direction(selector_steps);
       ActiveSelector = _next_selector;
-    }
-
-    while(digitalRead(A1) == 1 && selector_steps) {
-      // something went very wrong; we can't move the selector with filament loaded.
-        cry_for_help();
     }
 
     float idler_partial = selector_steps ? (float)idler_steps/(float)selector_steps : 1.0;

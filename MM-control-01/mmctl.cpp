@@ -37,10 +37,15 @@ void set_extruder_led(int extruder, uint16_t color)
     {  // light a single LED
       shr16_set_led( color << 2 * ((LEDS-1) - extruder));
     }
-  else
-    {  // wrap around, leaving first LED lit gree
+  else if (extruder < LEDS*2-1)
+    {  // wrap around, leaving first LED lit green
       shr16_set_led( (GREEN << 2 *  (LEDS-1)) |
-                     (color << 2 * ((LEDS-1) *2 - extruder)));
+                     (color << 2 * ((LEDS-1)*2 - extruder)));
+    }
+  else
+    {  // wrap around again, leaving first two LEDs lit green
+      shr16_set_led( (((GREEN<<2) | GREEN) << 2 *  (LEDS-2)) |
+                     (color << 2 * ((LEDS-1)*3-1 - extruder)));
     }
 }
 

@@ -130,7 +130,7 @@ bool setupMenu()
                 eraseLocked = false;
                 break;
             case 4:
-                calibrate();
+                calibrate(true);
                 break;
             case 5: // exit menu
                 _exit = true;

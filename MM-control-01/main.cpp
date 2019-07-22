@@ -288,13 +288,7 @@ void setup()
             state = S::Idle;
           }
 
-        tmc2130_init(HOMING_MODE);
-        tmc2130_read_gstat(); //consume reset after power up
-
-        // If this is not our first powerup, we have the extruder and
-        // calibration information stashed in permanent storage.  Fetch
-        // the number of extruders now.
-        extruders = SelectorParams::get_extruders();
+        stepper_state_init();
         // If extruder storage is uninitialized (haven't completed first
         // power-up/handshake/calibration), extruders will be zero.  Do not attempt to do the
         // calibration here and now as the i3 may yet issue a reset that
@@ -327,9 +321,9 @@ void delayed_setup()
 {
   if (extruders == 0)
     {
-      calibrate(); // side effects galore; determines our physical
-                   // parameters, stashes them in permanent storage,
-                   // homes everything.  Will not return on error.
+      calibrate(true); // side effects galore; determines our physical
+                       // parameters, stashes them in permanent storage,
+                       // homes everything.  Will not return on error.
     }
 
   // was a filment selected at power-down/power-loss?
@@ -516,6 +510,7 @@ void process_commands(FILE* inout)
 		count = 0;
 		//overflow
 	}
+	int values = 0;
 	int value = 0;
 	int value0 = 0;
 
@@ -571,10 +566,27 @@ void process_commands(FILE* inout)
 
 			state = S::Idle;
 		}
-		else if (sscanf_P(line, PSTR("X%d"), &value) > 0)
-		{
+                else if ((values = sscanf_P(line, PSTR("X%d %d"), &value, &value0)) > 0) {
 			if (value == 0) //! X0 MMU reset
 				wdt_enable(WDTO_15MS);
+			else if (value == 1) { //! X1 MMU recalibrate
+                               bool ret = calibrate(false);
+                               fprintf_P(inout, PSTR("%dok\n"), ret ? 0 : 1);
+                        }
+			else if (value == 2){ //! X2 MMU re-home
+                               bool ret = home(false);
+                               fprintf_P(inout, PSTR("%dok\n"), ret ? 0 : 1);
+                        }
+			else if (value == 3){ //! X3 get/set idler offset
+                               if (values == 2)
+                                 set_idler_offset(value0);
+                               fprintf_P(inout, PSTR("%dok\n"), (int)get_idler_offset());
+                        }
+			else if (value == 4){ //! X4 get/set selector offset
+                               if (values == 2)
+                                 set_selector_offset(value0);
+                               fprintf_P(inout, PSTR("%dok\n"), (int)get_selector_offset());
+                        }
 		}
 		else if (sscanf_P(line, PSTR("P%d"), &value) > 0)
 		{

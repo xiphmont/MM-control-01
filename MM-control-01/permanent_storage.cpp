@@ -31,7 +31,7 @@ typedef struct __attribute__ ((packed))
 }eeprom_t;
 static_assert(sizeof(eeprom_t) - 2 <= E2END, "eeprom_t doesn't fit into EEPROM available.");
 //! @brief EEPROM layout version
-static const uint8_t layoutVersion = 0xae;
+static const uint8_t layoutVersion = 0xee;
 
 //d = 6.3 mm        pulley diameter
 //c = pi * d        pulley circumference

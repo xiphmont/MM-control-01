@@ -58,7 +58,7 @@
 #define TMC2130_SPCR           SPI_SPCR(TMC2130_SPI_RATE, 1, 1, 1, 0)
 #define TMC2130_SPSR           SPI_SPSR(TMC2130_SPI_RATE)
 //params:
-// SG_THR stallguard treshold (sensitivity), range -128..127, real 0-3
+// SG_THR stallguard treshold (sensitivity), range -64..63
 #define TMC2130_SG_THR_0       5
 #define TMC2130_SG_THR_1       8
 #define TMC2130_SG_THR_2       9
@@ -124,7 +124,7 @@
 #define STA_ERR_TMC2_PIN_ENA  -26 //TMC2130 axis2 pin wirring error - ena signal
 
 //max number of extruders in EEPROM layout
-#define MAX_EXTRUDERS 8
+#define MAX_EXTRUDERS 10
 
 //number of extruder indicators (LEDs)
 #define LEDS 5
