@@ -570,12 +570,12 @@ void process_commands(FILE* inout)
 			if (value == 0) //! X0 MMU reset
 				wdt_enable(WDTO_15MS);
 			else if (value == 1) { //! X1 MMU recalibrate
-                               bool ret = calibrate(false);
-                               fprintf_P(inout, PSTR("%dok\n"), ret ? 0 : 1);
+                               int ret = calibrate(false);
+                               fprintf_P(inout, PSTR("%dok\n"), ret);
                         }
 			else if (value == 2){ //! X2 MMU re-home
-                               bool ret = home(false);
-                               fprintf_P(inout, PSTR("%dok\n"), ret ? 0 : 1);
+                               int ret = home(false);
+                               fprintf_P(inout, PSTR("%dok\n"), ret);
                         }
 			else if (value == 3){ //! X3 get/set idler offset
                                if (values == 2)

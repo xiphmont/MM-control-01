@@ -79,7 +79,7 @@
 #define CURRENT_HOLDING_NORMAL {1, 10, 22}  // {?,?,570 mA}
 #define CURRENT_RUNNING_STEALTH {35, 35, 45} // {?,?,910 mA}
 #define CURRENT_RUNNING_NORMAL {30, 35, 47} // {?,?,910 mA}
- // IMPORTANT: IDL homing current must be < 31 to trigger a setup that favors better StallGuard data
+// IMPORTANT: homing currents must be < 31 to trigger a setup that favors better StallGuard data
 #define CURRENT_HOMING {1, 30, 27}
 
 //mode
