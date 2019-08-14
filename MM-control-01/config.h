@@ -60,12 +60,12 @@
 //params:
 // SG_THR stallguard treshold (sensitivity), range -64..63
 #define TMC2130_SG_THR_0       5
-#define TMC2130_SG_THR_1       8
-#define TMC2130_SG_THR_2       9
+#define TMC2130_SG_THR_1       18
+#define TMC2130_SG_THR_2       13
 // TCOOLTHRS coolstep treshold, usable range 400-600
 #define TMC2130_TCOOLTHRS_0    450
 #define TMC2130_TCOOLTHRS_1    450
-#define TMC2130_TCOOLTHRS_2    450
+#define TMC2130_TCOOLTHRS_2    600
 
 //0 - PULLEY
 //1 - SELECTOR
@@ -79,8 +79,7 @@
 #define CURRENT_HOLDING_NORMAL {1, 10, 22}  // {?,?,570 mA}
 #define CURRENT_RUNNING_STEALTH {35, 35, 45} // {?,?,910 mA}
 #define CURRENT_RUNNING_NORMAL {30, 35, 47} // {?,?,910 mA}
-// IMPORTANT: homing currents must be < 31 to trigger a setup that favors better StallGuard data
-#define CURRENT_HOMING {1, 30, 27}
+#define CURRENT_HOMING {1, 35, 47}
 
 //mode
 #define HOMING_MODE 0

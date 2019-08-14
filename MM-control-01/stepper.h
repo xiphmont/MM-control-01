@@ -28,9 +28,7 @@
 // Do not accept repeatability worse than .56 degrees
 #define IDLER_CAL_TOLERANCE 5
 
-// ten degree backoff in stop repeatability test; we're balancing
-// motor resonance, barrel resonance, MMU2S body resonance, startup
-// variability, etc
+// ten degree backoff in stop repeatability test
 #define IDLER_CAL_BACKOFF_STEPS 90
 
 // timing delay (microseconds) between calibration travel steps; again
@@ -58,9 +56,9 @@
 
 // Check stop repeatability this many times (must be >=2)
 #define SELECTOR_CAL_SAMPLES 3
-#define SELECTOR_HOME_SAMPLES 3
+#define SELECTOR_HOME_SAMPLES 2
 
-// Do not accept repeatability worse than 5 steps * .05 == +/-.1mm
+// Do not accept repeatability worse than 5 steps * .02 == +/-.1mm
 #define SELECTOR_CAL_TOLERANCE 5
 
 // ~ half a cm backoff in endstop repeatability test; we're balancing
@@ -73,10 +71,6 @@
 // seems to be in the middle of the sweet-spot here. StallGuard in
 // config.h MUST be tuned to match.
 #define SELECTOR_CAL_DELAY 700
-
-// slow delay is for low-velocity, low-force intentional skipping at
-// the stops intended to do far less flexing.  No StallGuard here.
-#define SELECTOR_CAL_SLOW_DELAY 2500
 
 // StallGuard readings are noisy garbage when the motor first starts
 // stepping; make sure we have a running start before watching steps
